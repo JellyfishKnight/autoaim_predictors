@@ -32,8 +32,8 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
                 params_.armor_predictor.ekf.r_xyz_factor,
                 params_.armor_predictor.ekf.r_yaw
             },
-            params_.armor_predictor.max_lost,
-            params_.armor_predictor.max_detect,
+            static_cast<int>(params_.armor_predictor.max_lost),
+            static_cast<int>(params_.armor_predictor.max_detect),
             params_.armor_predictor.max_match_distance,
             params_.armor_predictor.max_match_yaw_diff,
             params_.armor_predictor.lost_time_thres_
@@ -69,16 +69,21 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     target = armor_predictor_->predict_target(*armors_msg, target.header.stamp);
     
     target_pub_->publish(target);
-    if ()
-    // 发布marker
-    PublishMarkers(target);
+    if (params_.debug) {
+        // publish visualization marker
+        publish_armor_markers(target);
+    }
 }
 
 void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::SharedPtr armors_msg) {
 
 }
 
-void PredictorNode::PublishArmorMarkers(autoaim_interfaces::msg::Target target) {
+void PredictorNode::publish_energy_markers(autoaim_interfaces::msg::Target target) {
+
+}
+
+void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target) {
     position_marker_.header = target.header;
     linear_v_marker_.header = target.header;
     angular_v_marker_.header = target.header;
@@ -115,29 +120,29 @@ void PredictorNode::PublishArmorMarkers(autoaim_interfaces::msg::Target target) 
         armor_marker_.action = visualization_msgs::msg::Marker::ADD;
         armor_marker_.scale.y = target.armor_type == "SMALL" ? 0.135 : 0.23;
         bool is_current_pair = true;
-        size_t a_n = static_cast<int>(target_type_) + 2;
+        size_t a_n = static_cast<int>(armor_predictor_->target_type_) + 2;
         geometry_msgs::msg::Point p_a;
         double r = 0;
         for (size_t i = 0; i < a_n; i++) {
-        double tmp_yaw = yaw + i * (2 * M_PI / a_n);
-        // Only 4 armors has 2 radius and height
-        if (a_n == 4) {
-            r = is_current_pair ? r1 : r2;
-            p_a.z = zc + (is_current_pair ? 0 : dz);
-            is_current_pair = !is_current_pair;
-        } else {
-            r = r1;
-            p_a.z = zc;
-        }
-        p_a.x = xc - r * cos(tmp_yaw);
-        p_a.y = yc - r * sin(tmp_yaw);
+            double tmp_yaw = yaw + i * (2 * M_PI / a_n);
+            // Only 4 armors has 2 radius and height
+            if (a_n == 4) {
+                r = is_current_pair ? r1 : r2;
+                p_a.z = zc + (is_current_pair ? 0 : dz);
+                is_current_pair = !is_current_pair;
+            } else {
+                r = r1;
+                p_a.z = zc;
+            }
+            p_a.x = xc - r * cos(tmp_yaw);
+            p_a.y = yc - r * sin(tmp_yaw);
 
-        armor_marker_.id = i;
-        armor_marker_.pose.position = p_a;
-        tf2::Quaternion q;
-        q.setRPY(0, target.armor_type == "outpost" ? -0.26 : 0.26, tmp_yaw);
-        armor_marker_.pose.orientation = tf2::toMsg(q);
-        marker_array.markers.emplace_back(armor_marker_);
+            armor_marker_.id = i;
+            armor_marker_.pose.position = p_a;
+            tf2::Quaternion q;
+            q.setRPY(0, target.armor_type == "outpost" ? -0.26 : 0.26, tmp_yaw);
+            armor_marker_.pose.orientation = tf2::toMsg(q);
+            marker_array.markers.emplace_back(armor_marker_);
         }
     } else {
         position_marker_.action = visualization_msgs::msg::Marker::DELETE;

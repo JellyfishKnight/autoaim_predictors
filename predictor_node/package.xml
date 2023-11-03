@@ -10,7 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>rclcpp_component</depend>
+  <depend>rclcpp_components</depend>
   <depend>generate_parameter_library</depend>
   <depend>autoaim_interfaces</depend>
   <depend>autoaim_utilities</depend>
