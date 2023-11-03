@@ -39,6 +39,79 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
             params_.armor_predictor.lost_time_thres_
         });
         armor_predictor_->init();
+    } else {
+        ///TODO: init energy_predictor
+        // energy_predictor = std::make_shared<EnergyPredictor>();
+    }
+    if (params_.debug) {
+        // init marker
+        // Visualization Marker Publisher
+        // See http://wiki.ros.org/rviz/DisplayTypes/Marker
+        position_marker_.ns = "position";
+        position_marker_.type = visualization_msgs::msg::Marker::SPHERE;
+        position_marker_.scale.x = position_marker_.scale.y = position_marker_.scale.z = 0.1;
+        position_marker_.color.a = 1.0;
+        position_marker_.color.g = 1.0;
+        linear_v_marker_.type = visualization_msgs::msg::Marker::ARROW;
+        linear_v_marker_.ns = "linear_v";
+        linear_v_marker_.scale.x = 0.03;
+        linear_v_marker_.scale.y = 0.05;
+        linear_v_marker_.color.a = 1.0;
+        linear_v_marker_.color.r = 1.0;
+        linear_v_marker_.color.g = 1.0;
+        angular_v_marker_.type = visualization_msgs::msg::Marker::ARROW;
+        angular_v_marker_.ns = "angular_v";
+        angular_v_marker_.scale.x = 0.03;
+        angular_v_marker_.scale.y = 0.05;
+        angular_v_marker_.color.a = 1.0;
+        angular_v_marker_.color.b = 1.0;
+        angular_v_marker_.color.g = 1.0;
+        armor_marker_.ns = "armors";
+        armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
+        armor_marker_.scale.x = 0.03;
+        armor_marker_.scale.z = 0.125;
+        armor_marker_.color.a = 1.0;
+        armor_marker_.color.r = 1.0;
+        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/predictor/marker", 10);
+    } else {
+        marker_pub_ = nullptr;
+    }
+    // create cam info subscriber
+    cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+        "/camera_info", rclcpp::SensorDataQoS(),
+        [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
+        cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
+        cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
+        // pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
+        //     params_.pnp_solver.small_armor_width,
+        //     params_.pnp_solver.small_armor_height,
+        //     params_.pnp_solver.large_armor_width,
+        //     params_.pnp_solver.large_armor_height,
+        //     params_.pnp_solver.energy_armor_width,
+        //     params_.pnp_solver.energy_armor_height
+        // });
+        armor_predictor_->set_cam_info(camera_info);
+        cam_info_sub_.reset();
+    });
+    // create publishers and subscribers
+    target_pub_ = this->create_publisher<autoaim_interfaces::msg::Target>("/predictor/target", 10);
+    // init tf2 utilities
+    tf2_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+    // Create the timer interface before call to waitForTransform,
+    // to avoid a tf2_ros::CreateTimerInterfaceException exception
+    auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(this->get_node_base_interface(), this->get_node_timers_interface());
+    tf2_buffer_->setCreateTimerInterface(timer_interface);
+    tf2_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf2_buffer_);
+    // subscriber and filter
+    armors_sub_.subscribe(this, "/detector/armors", rmw_qos_profile_sensor_data);
+    tf2_filter_ = std::make_shared<tf2_filter>(
+        armors_sub_, *tf2_buffer_, target_frame_, 10, this->get_node_logging_interface(),
+        this->get_node_clock_interface(), std::chrono::duration<int>(2));
+    // Register a callback with tf2_ros::MessageFilter to be called when transforms are available
+    if (params_.is_armor_autoaim) {
+        tf2_filter_->registerCallback(&PredictorNode::armor_predictor_callback, this);        
+    } else {
+        tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
     }
 }
 
@@ -47,11 +120,10 @@ PredictorNode::~PredictorNode() {
 }
 
 void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::SharedPtr armors_msg) {
-    // 串口回发数据
     autoaim_interfaces::msg::Target target;
-    target.header.stamp = this->now();
+    target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = target_frame_;
-    // 将装甲板的坐标转换在云台坐标系下
+    // transform armors to target frame
     for (auto &armor : armors_msg->armors) {
         geometry_msgs::msg::PoseStamped ps;
         ps.header = armors_msg->header;
@@ -67,7 +139,6 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
         return ;
     }
     target = armor_predictor_->predict_target(*armors_msg, target.header.stamp);
-    
     target_pub_->publish(target);
     if (params_.debug) {
         // publish visualization marker
@@ -162,4 +233,4 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
 
 #include "rclcpp_components/register_node_macro.hpp"
 
-RCLCPP_COMPONENTS_REGISTER_NODE(helios_cv::ArmorPredictor);
+RCLCPP_COMPONENTS_REGISTER_NODE(helios_cv::PredictorNode);

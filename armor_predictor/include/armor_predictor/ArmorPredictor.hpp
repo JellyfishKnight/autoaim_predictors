@@ -55,6 +55,8 @@ public:
     autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, const rclcpp::Time& now);
 
     std::vector<double> get_state() const;
+
+    TargetType target_type_;
 private:
     /**
      * @brief 
@@ -84,7 +86,6 @@ private:
     double last_r_ = 0;
     double target_yaw_ = 0;
     std::string armor_type_;
-    TargetType target_type_;
     autoaim_interfaces::msg::Armor last_armor_;
 
     autoaim_interfaces::msg::Armor tracking_armor_;

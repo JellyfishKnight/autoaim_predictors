@@ -30,7 +30,6 @@
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
-#include <geometry_msgs/msg/vector3.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include "autoaim_interfaces/msg/armors.hpp"
@@ -48,7 +47,6 @@
 namespace helios_cv {
 
 using tf2_filter = tf2_ros::MessageFilter<autoaim_interfaces::msg::Armors>;
-using std::placeholders::_1;
 using ParamListener = predictor_node::ParamListener;
 using Params = predictor_node::Params;
 
