@@ -1,0 +1,71 @@
+predictor_node:
+  debug: {
+    type: bool,
+    default_value: true,
+    description: "whether to show debug info"
+  }
+  is_armor_autoaim: {
+    type: bool,
+    default_value: true,
+    description: "whether to use armor autoaim"
+  }  
+  target_frame: {
+    type: string,
+    default_value: "gyro",
+    description: "target frame of coordinate transformation",
+  }
+  armor_predictor:
+    ekf: 
+      sigma2_q_xyz: {
+        type: double,
+        default_value: 100.0,
+      }
+      sigma2_q_yaw: {
+        type: double,
+        default_value: 25.0,
+      }
+      sigma2_q_r: {
+        type: double,
+        default_value: 800.0,
+      }
+      r_xyz_factor: {
+        type: double,
+        default_value: 0.05,
+      }
+      r_yaw: {
+        type: double,
+        default_value: 0.02
+      }
+    max_lost: {
+      type: double,
+      default_value: 5,
+      description: "max lost times of armor"
+    }
+    max_detect: {
+      type: double,
+      default_value: 5,
+      description: "max detect times of armor"
+    }
+    max_match_distance: {
+      type: double,
+      default_value: 0.8,
+      description: "max match distance of armor"
+    }
+    max_match_yaw_diff: {
+      type: double,
+      default_value: 0.7,
+      description: "max match yaw diff of armor"
+    }
+    lost_time_thres_: {
+      type: double,
+      default_value: 0.5,
+      description: "lost time threshold",
+    }
+  energy_predictor:
+    temp: {
+      type: double,
+      default_value: 10,
+      description: "temp",
+    }
+
+
