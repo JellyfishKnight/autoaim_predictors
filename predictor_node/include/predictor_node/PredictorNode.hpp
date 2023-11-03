@@ -63,8 +63,8 @@ private:
 
     std::shared_ptr<ArmorPredictor> armor_predictor_;
     // std::shared_ptr<EnergyPredictor> energy_predictor_;
+    void init_predictors();
 
-    /** ros2 subscriber and publisher **/ 
     rclcpp::Publisher<autoaim_interfaces::msg::Target>::SharedPtr target_pub_;
     // tf2 
     // Subscriber with tf2 message_filter
@@ -82,6 +82,7 @@ private:
     visualization_msgs::msg::Marker angular_v_marker_;
     visualization_msgs::msg::Marker armor_marker_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+    void init_markers();
 
     // Camera info part
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
@@ -100,6 +101,9 @@ private:
     void publish_armor_markers(autoaim_interfaces::msg::Target target);
 
     void publish_energy_markers(autoaim_interfaces::msg::Target target);
+
+
+
 
     rclcpp::Logger logger_ = rclcpp::get_logger("PredictorNode");
 };

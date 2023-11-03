@@ -22,57 +22,8 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     } catch (const std::exception &e) {
         RCLCPP_FATAL(logger_, "Failed to get parameters: %s, use empty params", e.what());
     }
-    if (params_.is_armor_autoaim) {
-        armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
-            params_.target_frame,
-            APParams::EKFParams{
-                params_.armor_predictor.ekf.sigma2_q_xyz,
-                params_.armor_predictor.ekf.sigma2_q_yaw,
-                params_.armor_predictor.ekf.sigma2_q_r,
-                params_.armor_predictor.ekf.r_xyz_factor,
-                params_.armor_predictor.ekf.r_yaw
-            },
-            static_cast<int>(params_.armor_predictor.max_lost),
-            static_cast<int>(params_.armor_predictor.max_detect),
-            params_.armor_predictor.max_match_distance,
-            params_.armor_predictor.max_match_yaw_diff,
-            params_.armor_predictor.lost_time_thres_
-        });
-        armor_predictor_->init();
-    } else {
-        ///TODO: init energy_predictor
-        // energy_predictor = std::make_shared<EnergyPredictor>();
-    }
     if (params_.debug) {
-        // init marker
-        // Visualization Marker Publisher
-        // See http://wiki.ros.org/rviz/DisplayTypes/Marker
-        position_marker_.ns = "position";
-        position_marker_.type = visualization_msgs::msg::Marker::SPHERE;
-        position_marker_.scale.x = position_marker_.scale.y = position_marker_.scale.z = 0.1;
-        position_marker_.color.a = 1.0;
-        position_marker_.color.g = 1.0;
-        linear_v_marker_.type = visualization_msgs::msg::Marker::ARROW;
-        linear_v_marker_.ns = "linear_v";
-        linear_v_marker_.scale.x = 0.03;
-        linear_v_marker_.scale.y = 0.05;
-        linear_v_marker_.color.a = 1.0;
-        linear_v_marker_.color.r = 1.0;
-        linear_v_marker_.color.g = 1.0;
-        angular_v_marker_.type = visualization_msgs::msg::Marker::ARROW;
-        angular_v_marker_.ns = "angular_v";
-        angular_v_marker_.scale.x = 0.03;
-        angular_v_marker_.scale.y = 0.05;
-        angular_v_marker_.color.a = 1.0;
-        angular_v_marker_.color.b = 1.0;
-        angular_v_marker_.color.g = 1.0;
-        armor_marker_.ns = "armors";
-        armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
-        armor_marker_.scale.x = 0.03;
-        armor_marker_.scale.z = 0.125;
-        armor_marker_.color.a = 1.0;
-        armor_marker_.color.r = 1.0;
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/predictor/marker", 10);
+        init_markers();
     } else {
         marker_pub_ = nullptr;
     }
@@ -82,6 +33,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
         [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
         cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
         cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
+        ///TODO: not sure if we need pnp solver in predictor node
         // pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
         //     params_.pnp_solver.small_armor_width,
         //     params_.pnp_solver.small_armor_height,
@@ -115,8 +67,60 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     }
 }
 
-PredictorNode::~PredictorNode() {
+void PredictorNode::init_predictors() {
+    if (params_.is_armor_autoaim) {
+        armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
+            params_.target_frame,
+            APParams::EKFParams{
+                params_.armor_predictor.ekf.sigma2_q_xyz,
+                params_.armor_predictor.ekf.sigma2_q_yaw,
+                params_.armor_predictor.ekf.sigma2_q_r,
+                params_.armor_predictor.ekf.r_xyz_factor,
+                params_.armor_predictor.ekf.r_yaw
+            },
+            static_cast<int>(params_.armor_predictor.max_lost),
+            static_cast<int>(params_.armor_predictor.max_detect),
+            params_.armor_predictor.max_match_distance,
+            params_.armor_predictor.max_match_yaw_diff,
+            params_.armor_predictor.lost_time_thres_
+        });
+        armor_predictor_->init();
+    } else {
+        ///TODO: init energy_predictor
+        // energy_predictor = std::make_shared<EnergyPredictor>();
+    }
+}
 
+
+void PredictorNode::init_markers() {
+    // Visualization Marker Publisher
+    // See http://wiki.ros.org/rviz/DisplayTypes/Marker
+    position_marker_.ns = "position";
+    position_marker_.type = visualization_msgs::msg::Marker::SPHERE;
+    position_marker_.scale.x = position_marker_.scale.y = position_marker_.scale.z = 0.1;
+    position_marker_.color.a = 1.0;
+    position_marker_.color.g = 1.0;
+    linear_v_marker_.type = visualization_msgs::msg::Marker::ARROW;
+    linear_v_marker_.ns = "linear_v";
+    linear_v_marker_.scale.x = 0.03;
+    linear_v_marker_.scale.y = 0.05;
+    linear_v_marker_.color.a = 1.0;
+    linear_v_marker_.color.r = 1.0;
+    linear_v_marker_.color.g = 1.0;
+    angular_v_marker_.type = visualization_msgs::msg::Marker::ARROW;
+    angular_v_marker_.ns = "angular_v";
+    angular_v_marker_.scale.x = 0.03;
+    angular_v_marker_.scale.y = 0.05;
+    angular_v_marker_.color.a = 1.0;
+    angular_v_marker_.color.b = 1.0;
+    angular_v_marker_.color.g = 1.0;
+    armor_marker_.ns = "armors";
+    armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
+    armor_marker_.scale.x = 0.03;
+    armor_marker_.scale.z = 0.125;
+    armor_marker_.color.a = 1.0;
+    armor_marker_.color.r = 1.0;
+    marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/predictor/marker", 10);
 }
 
 void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::SharedPtr armors_msg) {
@@ -227,6 +231,10 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
     marker_array.markers.emplace_back(angular_v_marker_);
     marker_array.markers.emplace_back(armor_marker_);
     marker_pub_->publish(marker_array);
+}
+
+PredictorNode::~PredictorNode() {
+
 }
 
 } // namespace helios_cv
