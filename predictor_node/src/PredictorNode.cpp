@@ -124,9 +124,19 @@ void PredictorNode::init_markers() {
 }
 
 void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::SharedPtr armors_msg) {
+    if (param_listener_->is_old(params_)) {
+        params_ = param_listener_->get_params();
+        RCLCPP_WARN(logger_, "Parameters updated");
+    }
+    if (!params_.is_armor_autoaim) {
+        RCLCPP_WARN(logger_, "Change state to energy predictor");
+        tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
+        return ;
+    }
     autoaim_interfaces::msg::Target target;
     target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = target_frame_;
+    
     // transform armors to target frame
     for (auto &armor : armors_msg->armors) {
         geometry_msgs::msg::PoseStamped ps;
@@ -142,7 +152,7 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     if (armors_msg->armors.empty()) {
         return ;
     }
-    target = armor_predictor_->predict_target(*armors_msg, target.header.stamp);
+    target = armor_predictor_->predict_target(*armors_msg);
     target_pub_->publish(target);
     if (params_.debug) {
         // publish visualization marker
@@ -151,6 +161,18 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
 }
 
 void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::SharedPtr armors_msg) {
+    if (param_listener_->is_old(params_)) {
+        params_ = param_listener_->get_params();
+        RCLCPP_WARN(logger_, "Parameters updated");
+    }
+    if (params_.is_armor_autoaim) {
+        RCLCPP_WARN(logger_, "Change state to energy predictor");
+        tf2_filter_->registerCallback(&PredictorNode::armor_predictor_callback, this);
+        return ;
+    }
+    autoaim_interfaces::msg::Target target;
+    target.header.stamp = armors_msg->header.stamp;
+    target.header.frame_id = target_frame_;
 
 }
 
