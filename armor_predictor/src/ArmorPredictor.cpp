@@ -91,6 +91,7 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
     // 回传数据
     autoaim_interfaces::msg::Target target;
     target.header.frame_id = params_.target_frame;
+    target.header.stamp = armors.header.stamp;
     // 分状态讨论：处于丢失状态，时若第一次找到装甲板，则重新初始化卡尔曼滤波器并且切换状态和发送位置。
     // 处于其他状态时，另作讨论
     if (find_state_ == LOST) {
@@ -129,6 +130,7 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
             target.dz = dz_;
             target.id = tracking_number_;
             target.tracking = true;
+            target.armor_type = armor_type_;
             target.armors_num = static_cast<int>(target_type_) + 2;
         } else {
             target.tracking = false;
@@ -170,19 +172,18 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
                 }
             }
         }
-        // 如果最小距离误差满足阈值，就不使用预测值
         if (min_position_error < params_.max_match_distance && yaw_diff < params_.max_match_yaw_diff) {
-            // 如果最小距离误差满足阈值，就使用预测值
             matched = true;
             auto position = tracking_armor_.pose.position;
             double measured_yaw = orientation2yaw(tracking_armor_.pose.orientation);
             Eigen::Vector4d measurement(position.x, position.y, position.z, measured_yaw);
             target_state_ = ekf_.Correct(measurement);
+            // RCLCPP_ERROR(logger_, "Yaw Diff : %f", yaw_diff);
+            // RCLCPP_ERROR(logger_, "Position Diff : %f", min_position_error);
+            // RCLCPP_ERROR(logger_, "Same ID Number: %d", same_id_armors_count);
         } else if (same_id_armors_count == 1 && yaw_diff > params_.max_match_yaw_diff) {
             armor_jump(same_id_armor);
-            // RCLCPP_WARN(this->get_logger(), "Yaw Diff : %f", yaw_diff);
-            // RCLCPP_WARN(this->get_logger(), "Position Diff : %f", min_position_error);
-            // RCLCPP_WARN(this->get_logger(), "Same ID Number: %d", same_id_armors_count);
+            RCLCPP_INFO(logger_, "target is in spinning mode!");
         } else {
             RCLCPP_WARN(logger_, "No matched armor found!");
             RCLCPP_WARN(logger_, "Yaw Diff : %f", yaw_diff);
@@ -305,7 +306,7 @@ void ArmorPredictor::armor_jump(const autoaim_interfaces::msg::Armor tracking_ar
         target_state_(5) = 0;
         target_state_(6) = 0;
         target_state_(7) = 0;
-        RCLCPP_ERROR(logger_, "Reset State!");
+        // RCLCPP_ERROR(logger_, "Reset State!");
     }
     ekf_.setState(target_state_);
 }

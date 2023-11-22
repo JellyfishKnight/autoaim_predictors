@@ -136,12 +136,8 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     }
     // 时间系统搭建 
     rclcpp::Time time = armors_msg->header.stamp;
-
     double dt = time.seconds() - time_predictor_start_;
     time_predictor_start_ = time.seconds();
-
-    autoaim_interfaces::msg::Target target;
-    
     // transform armors to target frame
     for (auto &armor : armors_msg->armors) {
         geometry_msgs::msg::PoseStamped ps;
@@ -154,7 +150,7 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
             return;
         }
     }
-    target = armor_predictor_->predict_target(*armors_msg, dt);
+    auto target = armor_predictor_->predict_target(*armors_msg, dt);
     target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = params_.target_frame;
     target_pub_->publish(target);
