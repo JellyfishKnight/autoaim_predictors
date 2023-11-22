@@ -22,6 +22,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     } catch (const std::exception &e) {
         RCLCPP_FATAL(logger_, "Failed to get parameters: %s, use empty params", e.what());
     }
+    init_predictors();
     if (params_.debug) {
         init_markers();
     } else {
@@ -57,7 +58,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     // subscriber and filter
     armors_sub_.subscribe(this, "/detector/armors", rmw_qos_profile_sensor_data);
     tf2_filter_ = std::make_shared<tf2_filter>(
-        armors_sub_, *tf2_buffer_, target_frame_, 10, this->get_node_logging_interface(),
+        armors_sub_, *tf2_buffer_, params_.target_frame, 10, this->get_node_logging_interface(),
         this->get_node_clock_interface(), std::chrono::duration<int>(2));
     // Register a callback with tf2_ros::MessageFilter to be called when transforms are available
     if (params_.is_armor_autoaim) {
@@ -68,27 +69,24 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
 }
 
 void PredictorNode::init_predictors() {
-    if (params_.is_armor_autoaim) {
-        armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
-            params_.target_frame,
-            APParams::EKFParams{
-                params_.armor_predictor.ekf.sigma2_q_xyz,
-                params_.armor_predictor.ekf.sigma2_q_yaw,
-                params_.armor_predictor.ekf.sigma2_q_r,
-                params_.armor_predictor.ekf.r_xyz_factor,
-                params_.armor_predictor.ekf.r_yaw
-            },
-            static_cast<int>(params_.armor_predictor.max_lost),
-            static_cast<int>(params_.armor_predictor.max_detect),
-            params_.armor_predictor.max_match_distance,
-            params_.armor_predictor.max_match_yaw_diff,
-            params_.armor_predictor.lost_time_thres_
-        });
-        armor_predictor_->init();
-    } else {
-        ///TODO: init energy_predictor
-        // energy_predictor = std::make_shared<EnergyPredictor>();
-    }
+    armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
+        params_.target_frame,
+        APParams::EKFParams{
+            params_.armor_predictor.ekf.sigma2_q_xyz,
+            params_.armor_predictor.ekf.sigma2_q_yaw,
+            params_.armor_predictor.ekf.sigma2_q_r,
+            params_.armor_predictor.ekf.r_xyz_factor,
+            params_.armor_predictor.ekf.r_yaw
+        },
+        static_cast<int>(params_.armor_predictor.max_lost),
+        static_cast<int>(params_.armor_predictor.max_detect),
+        params_.armor_predictor.max_match_distance,
+        params_.armor_predictor.max_match_yaw_diff,
+        params_.armor_predictor.lost_time_thres_
+    });
+    armor_predictor_->init();
+    ///TODO: init energy_predictor
+    // energy_predictor = std::make_shared<EnergyPredictor>();
 }
 
 
@@ -133,9 +131,16 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
         tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
         return ;
     }
+    if (armors_msg->armors.empty()) {
+        return ;
+    }
+    // 时间系统搭建 
+    rclcpp::Time time = armors_msg->header.stamp;
+
+    double dt = time.seconds() - time_predictor_start_;
+    time_predictor_start_ = time.seconds();
+
     autoaim_interfaces::msg::Target target;
-    target.header.stamp = armors_msg->header.stamp;
-    target.header.frame_id = target_frame_;
     
     // transform armors to target frame
     for (auto &armor : armors_msg->armors) {
@@ -143,16 +148,15 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
         ps.header = armors_msg->header;
         ps.pose = armor.pose;
         try {
-            armor.pose = tf2_buffer_->transform(ps, target_frame_).pose;
+            armor.pose = tf2_buffer_->transform(ps, params_.target_frame).pose;
         } catch (const tf2::ExtrapolationException & ex) {
             RCLCPP_ERROR(get_logger(), "Error while transforming %s", ex.what());
             return;
         }
     }
-    if (armors_msg->armors.empty()) {
-        return ;
-    }
-    target = armor_predictor_->predict_target(*armors_msg);
+    target = armor_predictor_->predict_target(*armors_msg, dt);
+    target.header.stamp = armors_msg->header.stamp;
+    target.header.frame_id = params_.target_frame;
     target_pub_->publish(target);
     if (params_.debug) {
         // publish visualization marker
@@ -172,7 +176,7 @@ void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::S
     }
     autoaim_interfaces::msg::Target target;
     target.header.stamp = armors_msg->header.stamp;
-    target.header.frame_id = target_frame_;
+    target.header.frame_id = params_.target_frame;
 
 }
 

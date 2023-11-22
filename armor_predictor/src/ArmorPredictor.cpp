@@ -86,14 +86,10 @@ void ArmorPredictor::init() {
 
 }
 
-autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interfaces::msg::Armors armors) {
-    // 时间系统搭建 
-    rclcpp::Time time = armors.header.stamp;
-    dt_ = (time - time_predictor_start_).seconds();
-    time_predictor_start_ = time;
+autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
+    dt_ = dt;
     // 回传数据
     autoaim_interfaces::msg::Target target;
-    target.header.stamp = time;
     target.header.frame_id = params_.target_frame;
     // 分状态讨论：处于丢失状态，时若第一次找到装甲板，则重新初始化卡尔曼滤波器并且切换状态和发送位置。
     // 处于其他状态时，另作讨论

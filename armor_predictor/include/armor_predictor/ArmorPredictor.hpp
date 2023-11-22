@@ -52,7 +52,7 @@ public:
 
     void init();
 
-    autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors);
+    autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt);
 
     std::vector<double> get_state() const;
 
@@ -72,7 +72,6 @@ private:
     int lost_cnt_ = 0;
     int detect_cnt_ = 0;
 
-    rclcpp::Time time_predictor_start_;
     //
     uint8_t car_name_;
     //

@@ -61,6 +61,10 @@ private:
 
     void energy_predictor_callback(autoaim_interfaces::msg::Armors::SharedPtr armors_msg);
 
+    // time series
+    double time_predictor_start_;
+
+
     std::shared_ptr<ArmorPredictor> armor_predictor_;
     // std::shared_ptr<EnergyPredictor> energy_predictor_;
     void init_predictors();
@@ -68,7 +72,6 @@ private:
     rclcpp::Publisher<autoaim_interfaces::msg::Target>::SharedPtr target_pub_;
     // tf2 
     // Subscriber with tf2 message_filter
-    std::string target_frame_;
     std::shared_ptr<tf2_ros::Buffer> tf2_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf2_listener_;
     message_filters::Subscriber<autoaim_interfaces::msg::Armors> armors_sub_;

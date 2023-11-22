@@ -11,7 +11,7 @@ predictor_node:
   }  
   target_frame: {
     type: string,
-    default_value: "gyro",
+    default_value: "odom",
     description: "target frame of coordinate transformation",
   }
   armor_predictor:
