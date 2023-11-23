@@ -48,12 +48,12 @@ predictor_node:
     }
     max_match_distance: {
       type: double,
-      default_value: 0.2,
+      default_value: 0.5,
       description: "max match distance of armor"
     }
     max_match_yaw_diff: {
       type: double,
-      default_value: 1.0,
+      default_value: 0.5,
       description: "max match yaw diff of armor"
     }
     lost_time_thres_: {

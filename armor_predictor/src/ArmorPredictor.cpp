@@ -160,7 +160,6 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
             if (armor.number == tracking_number_) {
                 same_id_armors_count++;
                 same_id_armor = armor;
-
                 auto p = armor.pose.position;
                 Eigen::Vector3d position_vec(p.x, p.y, p.z);
                 double position_diff = (armor_position - position_vec).norm();
@@ -178,12 +177,11 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
             double measured_yaw = orientation2yaw(tracking_armor_.pose.orientation);
             Eigen::Vector4d measurement(position.x, position.y, position.z, measured_yaw);
             target_state_ = ekf_.Correct(measurement);
-            // RCLCPP_ERROR(logger_, "Yaw Diff : %f", yaw_diff);
-            // RCLCPP_ERROR(logger_, "Position Diff : %f", min_position_error);
-            // RCLCPP_ERROR(logger_, "Same ID Number: %d", same_id_armors_count);
+            RCLCPP_INFO(logger_, "Yaw Diff : %f", yaw_diff);
+            RCLCPP_INFO(logger_, "Position Diff : %f", min_position_error);
+            RCLCPP_INFO(logger_, "Same ID Number: %d", same_id_armors_count);
         } else if (same_id_armors_count == 1 && yaw_diff > params_.max_match_yaw_diff) {
             armor_jump(same_id_armor);
-            RCLCPP_INFO(logger_, "target is in spinning mode!");
         } else {
             RCLCPP_WARN(logger_, "No matched armor found!");
             RCLCPP_WARN(logger_, "Yaw Diff : %f", yaw_diff);
@@ -306,7 +304,7 @@ void ArmorPredictor::armor_jump(const autoaim_interfaces::msg::Armor tracking_ar
         target_state_(5) = 0;
         target_state_(6) = 0;
         target_state_(7) = 0;
-        // RCLCPP_ERROR(logger_, "Reset State!");
+        RCLCPP_WARN(logger_, "Reset State!");
     }
     ekf_.setState(target_state_);
 }
