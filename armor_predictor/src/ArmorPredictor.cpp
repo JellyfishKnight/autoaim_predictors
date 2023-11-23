@@ -106,7 +106,7 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
         }
         target_xyz_ = Eigen::Vector3d(tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z);
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
-        armor_type_ = tracking_armor_.type;
+        armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
         reset_kalman();
         tracking_number_ = tracking_armor_.number;
         find_state_ = DETECTING;
@@ -154,7 +154,7 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
 
         target_xyz_ = Eigen::Vector3d(tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z);
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
-        armor_type_ = tracking_armor_.type;
+        armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
 
         for (const auto& armor : armors.armors) {
             if (armor.number == tracking_number_) {
