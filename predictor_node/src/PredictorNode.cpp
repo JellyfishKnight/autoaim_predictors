@@ -131,9 +131,6 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
         tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
         return ;
     }
-    if (armors_msg->armors.empty()) {
-        return ;
-    }
     // 时间系统搭建 
     rclcpp::Time time = armors_msg->header.stamp;
     double dt = time.seconds() - time_predictor_start_;

@@ -95,6 +95,10 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
     // 分状态讨论：处于丢失状态，时若第一次找到装甲板，则重新初始化卡尔曼滤波器并且切换状态和发送位置。
     // 处于其他状态时，另作讨论
     if (find_state_ == LOST) {
+        if (armors.armors.empty()) {
+            target.tracking = false;
+            return target;
+        }
         // 选取最优装甲板（距离）
         double min_distance = DBL_MAX;
         tracking_armor_ = armors.armors[0];
