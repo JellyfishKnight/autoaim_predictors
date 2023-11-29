@@ -151,9 +151,8 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
 void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
     Eigen::VectorXd prediction = ekf_.Predict();
     bool matched = false;
-    // if there is no match, use directly prediction
+    // Use KF prediction as default target state if no matched armor is found
     target_state_ = prediction;
-    // if there is a match, use the position of match armor
     if (!armors.armors.empty()) {
         autoaim_interfaces::msg::Armor same_id_armor;
         int same_id_armors_count = 0;
@@ -166,39 +165,44 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
         armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
 
         for (const auto& armor : armors.armors) {
+            // Only consider armors with the same id
             if (armor.number == tracking_number_) {
                 same_id_armors_count++;
                 same_id_armor = armor;
                 auto p = armor.pose.position;
                 Eigen::Vector3d position_vec(p.x, p.y, p.z);
+                // Calculate the difference between the predicted position and the current armor position
                 double position_diff = (armor_position - position_vec).norm();
-                // RCLCPP_WARN(this->get_logger(), "Position Diff : %f", position_diff);
                 if (position_diff < min_position_error) {
+                    // Find the closest armor
                     min_position_error = position_diff;
                     yaw_diff = abs(orientation2yaw(armor.pose.orientation) - prediction(3));
                     tracking_armor_ = armor;
                 }
             }
         }
+        // Check if the distance and yaw difference of closest armor are within the threshold
         if (min_position_error < params_.max_match_distance && yaw_diff < params_.max_match_yaw_diff) {
+            // Matched armor found
             matched = true;
             auto position = tracking_armor_.pose.position;
+            // Update EKF
             double measured_yaw = orientation2yaw(tracking_armor_.pose.orientation);
             Eigen::Vector4d measurement(position.x, position.y, position.z, measured_yaw);
             target_state_ = ekf_.Correct(measurement);
-            // RCLCPP_INFO(logger_, "Yaw Diff : %f", yaw_diff);
-            // RCLCPP_INFO(logger_, "Position Diff : %f", min_position_error);
-            // RCLCPP_INFO(logger_, "Same ID Number: %d", same_id_armors_count);
         } else if (same_id_armors_count == 1 && yaw_diff > params_.max_match_yaw_diff) {
+            // Matched armor not found, but there is only one armor with the same id
+            // and yaw has jumped, take this case as the target is spinning and armor jumped
             armor_jump(same_id_armor);
         } else {
+            // No matched armor found
             RCLCPP_WARN(logger_, "No matched armor found!");
             RCLCPP_WARN(logger_, "Yaw Diff : %f", yaw_diff);
             RCLCPP_WARN(logger_, "Position Diff : %f", min_position_error);
             RCLCPP_WARN(logger_, "Same ID Number: %d", same_id_armors_count);
         }
     }
-    // 防止半径扩散
+    // Prevent radius from spreading
     if (target_state_(8) < 0.2) {
         target_state_(8) = 0.2;
         ekf_.setState(target_state_);
@@ -306,13 +310,12 @@ void ArmorPredictor::armor_jump(const autoaim_interfaces::msg::Armor tracking_ar
     // if the distance between current position and infer position is too large, then the state is wrong
     if ((current_position - infer_position).norm() > params_.max_match_distance) {
         double r = target_state_(8);
-        target_state_(0) = position.x + r * cos(yaw);
-        target_state_(1) = position.y + r * sin(yaw);
-        target_state_(2) = position.z;
-        target_state_(4) = 0;
-        target_state_(5) = 0;
-        target_state_(6) = 0;
-        target_state_(7) = 0;
+        target_state_(0) = position.x + r * cos(yaw); // xc
+        target_state_(1) = position.y + r * sin(yaw); // yc
+        target_state_(2) = position.z;                // zc
+        target_state_(4) = 0;                         // vxc
+        target_state_(5) = 0;                         // vyc
+        target_state_(6) = 0;                         // vzc
         RCLCPP_WARN(logger_, "Reset State!");
     }
     ekf_.setState(target_state_);
