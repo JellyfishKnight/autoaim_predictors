@@ -6,6 +6,7 @@
 namespace helios_cv {
 ArmorPredictor::ArmorPredictor(const APParams& params) {
     params_ =  params;
+    find_state_ = LOST;
 }
 
 void ArmorPredictor::set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) {}
@@ -88,6 +89,10 @@ void ArmorPredictor::init() {
 
 autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
     dt_ = dt;
+    if (dt_ > 0.1) {
+        RCLCPP_INFO(logger_, "target lost!");
+        find_state_ = LOST;
+    }
     // 回传数据
     autoaim_interfaces::msg::Target target;
     target.header.frame_id = params_.target_frame;
@@ -98,7 +103,7 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
         if (armors.armors.empty()) {
             target.tracking = false;
             return target;
-        }
+        }        
         // 选取最优装甲板（距离）
         double min_distance = DBL_MAX;
         tracking_armor_ = armors.armors[0];
@@ -181,9 +186,9 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
             double measured_yaw = orientation2yaw(tracking_armor_.pose.orientation);
             Eigen::Vector4d measurement(position.x, position.y, position.z, measured_yaw);
             target_state_ = ekf_.Correct(measurement);
-            RCLCPP_INFO(logger_, "Yaw Diff : %f", yaw_diff);
-            RCLCPP_INFO(logger_, "Position Diff : %f", min_position_error);
-            RCLCPP_INFO(logger_, "Same ID Number: %d", same_id_armors_count);
+            // RCLCPP_INFO(logger_, "Yaw Diff : %f", yaw_diff);
+            // RCLCPP_INFO(logger_, "Position Diff : %f", min_position_error);
+            // RCLCPP_INFO(logger_, "Same ID Number: %d", same_id_armors_count);
         } else if (same_id_armors_count == 1 && yaw_diff > params_.max_match_yaw_diff) {
             armor_jump(same_id_armor);
         } else {

@@ -131,7 +131,7 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
         tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
         return ;
     }
-    // 时间系统搭建 
+    // build time series
     rclcpp::Time time = armors_msg->header.stamp;
     double dt = time.seconds() - time_predictor_start_;
     time_predictor_start_ = time.seconds();
@@ -170,7 +170,6 @@ void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::S
     autoaim_interfaces::msg::Target target;
     target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = params_.target_frame;
-
 }
 
 void PredictorNode::publish_energy_markers(autoaim_interfaces::msg::Target target) {
