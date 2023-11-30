@@ -11,6 +11,7 @@
  #pragma once
 
 // ros
+#include <cstdint>
 #include <rclcpp/rclcpp.hpp>
 #include <angles/angles.h>
 
@@ -98,9 +99,6 @@ private:
 
     //弧度制角度制转换常量
     double degree2rad = CV_PI / 180.0;
-    // 相机中心点
-    cv::Point image_center_;    
-
     // parameter utilities
     std::shared_ptr<ParamListener> param_listener_;
     Params params_;
@@ -108,6 +106,7 @@ private:
 
     // reset predictor service
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_predictor_service_;
+    uint8_t last_autoaim_mode_ = 0;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("PredictorNode");
 };

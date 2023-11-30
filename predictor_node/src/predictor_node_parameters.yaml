@@ -5,8 +5,8 @@ predictor_node:
     description: "whether to show debug info"
   }
   is_armor_autoaim: {
-    type: bool,
-    default_value: true,
+    type: int,
+    default_value: 0,
     description: "whether to use armor autoaim"
   }  
   target_frame: {

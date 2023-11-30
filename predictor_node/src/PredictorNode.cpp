@@ -12,6 +12,9 @@
 #include "PredictorNode.hpp"
 #include <armor_predictor/ArmorPredictor.hpp>
 #include <memory>
+#include <rclcpp/logging.hpp>
+#include <rclcpp/rate.hpp>
+#include <rclcpp/utilities.hpp>
 #include <std_srvs/std_srvs/srv/detail/trigger__struct.hpp>
 
 namespace helios_cv {
@@ -58,13 +61,13 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(this->get_node_base_interface(), this->get_node_timers_interface());
     tf2_buffer_->setCreateTimerInterface(timer_interface);
     tf2_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf2_buffer_);
-    // subscriber and filter
+    // subscriber and filter    
     armors_sub_.subscribe(this, "/detector/armors", rmw_qos_profile_sensor_data);
+    // Register a callback with tf2_ros::MessageFilter to be called when transforms are available
     tf2_filter_ = std::make_shared<tf2_filter>(
         armors_sub_, *tf2_buffer_, params_.target_frame, 10, this->get_node_logging_interface(),
         this->get_node_clock_interface(), std::chrono::duration<int>(2));
-    // Register a callback with tf2_ros::MessageFilter to be called when transforms are available
-    if (params_.is_armor_autoaim) {
+    if (params_.is_armor_autoaim == 0) {
         tf2_filter_->registerCallback(&PredictorNode::armor_predictor_callback, this);        
     } else {
         tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
@@ -83,6 +86,29 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
         }
         return;
     });
+    std::thread([this]()->void {
+        while(rclcpp::ok()) {
+            if (params_.is_armor_autoaim != last_autoaim_mode_) {
+                if (params_.is_armor_autoaim == 0) {
+                    RCLCPP_WARN(logger_, "Change state to armor mode");
+                    tf2_filter_.reset();
+                    tf2_filter_ = std::make_shared<tf2_filter>(
+                        armors_sub_, *tf2_buffer_, params_.target_frame, 10, this->get_node_logging_interface(),
+                        this->get_node_clock_interface(), std::chrono::duration<int>(2));
+                    tf2_filter_->registerCallback(&PredictorNode::armor_predictor_callback, this);   
+                    last_autoaim_mode_ = 0;     
+                } else {
+                    RCLCPP_WARN(logger_, "Change state to energy mode");
+                    tf2_filter_.reset();
+                    tf2_filter_ = std::make_shared<tf2_filter>(
+                        armors_sub_, *tf2_buffer_, params_.target_frame, 10, this->get_node_logging_interface(),
+                        this->get_node_clock_interface(), std::chrono::duration<int>(2));
+                    tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);        
+                    last_autoaim_mode_ = params_.is_armor_autoaim;
+                }
+            }
+        }
+    }).detach();
 }
 
 void PredictorNode::init_predictors() {
@@ -144,11 +170,6 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
         RCLCPP_WARN(logger_, "Parameters updated");
         update_predictor_params();
     }
-    if (!params_.is_armor_autoaim) {
-        RCLCPP_WARN(logger_, "Change state to energy predictor");
-        tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
-        return ;
-    }
     // build time series
     rclcpp::Time time = armors_msg->header.stamp;
     double dt = time.seconds() - time_predictor_start_;
@@ -181,11 +202,7 @@ void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::S
         RCLCPP_WARN(logger_, "Parameters updated");
         update_predictor_params();
     }
-    if (params_.is_armor_autoaim) {
-        RCLCPP_WARN(logger_, "Change state to energy predictor");
-        tf2_filter_->registerCallback(&PredictorNode::armor_predictor_callback, this);
-        return ;
-    }
+    RCLCPP_ERROR_ONCE(logger_, "Energy mode!");
     autoaim_interfaces::msg::Target target;
     target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = params_.target_frame;
