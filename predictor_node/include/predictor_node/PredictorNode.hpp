@@ -15,6 +15,8 @@
 #include <angles/angles.h>
 
 // tf2
+#include <rclcpp/service.hpp>
+#include <std_srvs/std_srvs/srv/detail/trigger__struct.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/create_timer_ros.h>
@@ -34,7 +36,7 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include "autoaim_interfaces/msg/armors.hpp"
 #include "autoaim_interfaces/msg/target.hpp"
-
+#include <std_srvs/srv/trigger.hpp>
 // custom
 #include "armor_predictor/ArmorPredictor.hpp"
 // #include "energy_predictor/EnergyPredictor.hpp"
@@ -86,6 +88,8 @@ private:
     visualization_msgs::msg::Marker armor_marker_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
     void init_markers();
+    void publish_armor_markers(autoaim_interfaces::msg::Target target);
+    void publish_energy_markers(autoaim_interfaces::msg::Target target);
 
     // Camera info part
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
@@ -102,9 +106,9 @@ private:
     Params params_;
     void update_predictor_params();
 
-    void publish_armor_markers(autoaim_interfaces::msg::Target target);
+    // reset predictor service
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_predictor_service_;
 
-    void publish_energy_markers(autoaim_interfaces::msg::Target target);
     rclcpp::Logger logger_ = rclcpp::get_logger("PredictorNode");
 };
 

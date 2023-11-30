@@ -57,6 +57,7 @@ public:
     std::vector<double> get_state() const;
 
     TargetType target_type_;
+    int find_state_;
 private:
     /**
      * @brief 
@@ -68,15 +69,10 @@ private:
     APParams params_;
 
     // State Machine
-    int find_state_;
     int lost_cnt_ = 0;
     int detect_cnt_ = 0;
-
-    //
-    uint8_t car_name_;
     //
     std::string tracking_number_;
-
     // 识别到的目标点
     cv::Point2f target_point;
     // 上一次的装甲板状态
@@ -90,16 +86,8 @@ private:
     autoaim_interfaces::msg::Armor tracking_armor_;
     // 目标车辆状态
     Eigen::VectorXd target_state_;
-    // 车中心点
-    Eigen::Vector3d car_center_ = {0, 0, 0};
     //目标xyz
     Eigen::Vector3d target_xyz_ = {0, 0, 0};
-    //本次预测xyz
-    Eigen::Vector3d predict_xyz_ = {0, 0, 0};
-    //上一次的目标xyz
-    Eigen::Vector3d last_xyz_ = {0, 0, 0};
-    //上一次预测的xyz
-    Eigen::Vector3d last_predict_xyz_ = {0, 0, 0};
     // kalman utilities
     double dz_;
     double dt_ = 0.008f;

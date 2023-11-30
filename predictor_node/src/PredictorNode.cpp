@@ -12,6 +12,7 @@
 #include "PredictorNode.hpp"
 #include <armor_predictor/ArmorPredictor.hpp>
 #include <memory>
+#include <std_srvs/std_srvs/srv/detail/trigger__struct.hpp>
 
 namespace helios_cv {
 
@@ -68,6 +69,20 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     } else {
         tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
     }
+    // Register reset predictor service
+    reset_predictor_service_ = this->create_service<std_srvs::srv::Trigger>("/predictor/reset", 
+        [this](const std_srvs::srv::Trigger::Request::SharedPtr,
+               std_srvs::srv::Trigger::Response::SharedPtr response) {
+        if (params_.is_armor_autoaim) {
+            armor_predictor_->find_state_ = LOST;
+            response->success = true;
+            RCLCPP_INFO(this->get_logger(), "Tracker reset!");
+        } else {
+            response->success = true;
+            RCLCPP_INFO(this->get_logger(), "Reset failed! In Energy mode!");
+        }
+        return;
+    });
 }
 
 void PredictorNode::init_predictors() {

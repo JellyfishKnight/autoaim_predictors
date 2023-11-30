@@ -103,7 +103,7 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
         if (armors.armors.empty()) {
             target.tracking = false;
             return target;
-        }        
+        }
         // 选取最优装甲板（距离）
         double min_distance = DBL_MAX;
         tracking_armor_ = armors.armors[0];
@@ -197,9 +197,9 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
         } else {
             // No matched armor found
             RCLCPP_WARN(logger_, "No matched armor found!");
-            RCLCPP_WARN(logger_, "Yaw Diff : %f", yaw_diff);
-            RCLCPP_WARN(logger_, "Position Diff : %f", min_position_error);
-            RCLCPP_WARN(logger_, "Same ID Number: %d", same_id_armors_count);
+            RCLCPP_DEBUG(logger_, "Yaw Diff : %f", yaw_diff);
+            RCLCPP_DEBUG(logger_, "Position Diff : %f", min_position_error);
+            RCLCPP_DEBUG(logger_, "Same ID Number: %d", same_id_armors_count);
         }
     }
     // Prevent radius from spreading
