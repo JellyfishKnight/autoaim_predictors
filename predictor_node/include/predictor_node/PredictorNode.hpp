@@ -100,14 +100,11 @@ private:
     // parameter utilities
     std::shared_ptr<ParamListener> param_listener_;
     Params params_;
+    void update_predictor_params();
 
     void publish_armor_markers(autoaim_interfaces::msg::Target target);
 
     void publish_energy_markers(autoaim_interfaces::msg::Target target);
-
-
-
-
     rclcpp::Logger logger_ = rclcpp::get_logger("PredictorNode");
 };
 

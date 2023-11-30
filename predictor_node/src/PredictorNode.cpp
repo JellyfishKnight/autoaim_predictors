@@ -10,6 +10,8 @@
  */
 
 #include "PredictorNode.hpp"
+#include <armor_predictor/ArmorPredictor.hpp>
+#include <memory>
 
 namespace helios_cv {
 
@@ -125,6 +127,7 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     if (param_listener_->is_old(params_)) {
         params_ = param_listener_->get_params();
         RCLCPP_WARN(logger_, "Parameters updated");
+        update_predictor_params();
     }
     if (!params_.is_armor_autoaim) {
         RCLCPP_WARN(logger_, "Change state to energy predictor");
@@ -161,6 +164,7 @@ void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::S
     if (param_listener_->is_old(params_)) {
         params_ = param_listener_->get_params();
         RCLCPP_WARN(logger_, "Parameters updated");
+        update_predictor_params();
     }
     if (params_.is_armor_autoaim) {
         RCLCPP_WARN(logger_, "Change state to energy predictor");
@@ -249,6 +253,30 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
     marker_array.markers.emplace_back(angular_v_marker_);
     marker_array.markers.emplace_back(armor_marker_);
     marker_pub_->publish(marker_array);
+}
+
+void PredictorNode::update_predictor_params() {
+    if (params_.is_armor_autoaim) {
+        armor_predictor_.reset();
+        armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
+            params_.target_frame,
+            APParams::EKFParams{
+                params_.armor_predictor.ekf.sigma2_q_xyz,
+                params_.armor_predictor.ekf.sigma2_q_yaw,
+                params_.armor_predictor.ekf.sigma2_q_r,
+                params_.armor_predictor.ekf.r_xyz_factor,
+                params_.armor_predictor.ekf.r_yaw
+            },
+            static_cast<int>(params_.armor_predictor.max_lost),
+            static_cast<int>(params_.armor_predictor.max_detect),
+            params_.armor_predictor.max_match_distance,
+            params_.armor_predictor.max_match_yaw_diff,
+            params_.armor_predictor.lost_time_thres_
+        });
+        armor_predictor_->init();    
+    } else {
+
+    }
 }
 
 PredictorNode::~PredictorNode() {
