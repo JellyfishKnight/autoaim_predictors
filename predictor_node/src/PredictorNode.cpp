@@ -67,7 +67,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     tf2_filter_ = std::make_shared<tf2_filter>(
         armors_sub_, *tf2_buffer_, params_.target_frame, 10, this->get_node_logging_interface(),
         this->get_node_clock_interface(), std::chrono::duration<int>(2));
-    if (params_.is_armor_autoaim == 0) {
+    if (params_.autoaim_mode == 0) {
         tf2_filter_->registerCallback(&PredictorNode::armor_predictor_callback, this);        
     } else {
         tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);
@@ -76,7 +76,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     reset_predictor_service_ = this->create_service<std_srvs::srv::Trigger>("/predictor/reset", 
         [this](const std_srvs::srv::Trigger::Request::SharedPtr,
                std_srvs::srv::Trigger::Response::SharedPtr response) {
-        if (params_.is_armor_autoaim) {
+        if (params_.autoaim_mode) {
             armor_predictor_->find_state_ = LOST;
             response->success = true;
             RCLCPP_INFO(this->get_logger(), "Tracker reset!");
@@ -88,9 +88,10 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
     });
     std::thread([this]()->void {
         while(rclcpp::ok()) {
-            if (params_.is_armor_autoaim != last_autoaim_mode_) {
-                if (params_.is_armor_autoaim == 0) {
+            if (params_.autoaim_mode != last_autoaim_mode_) {
+                if (params_.autoaim_mode == 0) {
                     RCLCPP_WARN(logger_, "Change state to armor mode");
+                    // reset to release running callback function
                     tf2_filter_.reset();
                     tf2_filter_ = std::make_shared<tf2_filter>(
                         armors_sub_, *tf2_buffer_, params_.target_frame, 10, this->get_node_logging_interface(),
@@ -99,12 +100,13 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
                     last_autoaim_mode_ = 0;     
                 } else {
                     RCLCPP_WARN(logger_, "Change state to energy mode");
+                    // reset to release running callback function
                     tf2_filter_.reset();
                     tf2_filter_ = std::make_shared<tf2_filter>(
                         armors_sub_, *tf2_buffer_, params_.target_frame, 10, this->get_node_logging_interface(),
                         this->get_node_clock_interface(), std::chrono::duration<int>(2));
                     tf2_filter_->registerCallback(&PredictorNode::energy_predictor_callback, this);        
-                    last_autoaim_mode_ = params_.is_armor_autoaim;
+                    last_autoaim_mode_ = params_.autoaim_mode;
                 }
             }
         }
@@ -288,7 +290,7 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
 }
 
 void PredictorNode::update_predictor_params() {
-    if (params_.is_armor_autoaim) {
+    if (params_.autoaim_mode) {
         armor_predictor_.reset();
         armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
             params_.target_frame,
