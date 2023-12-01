@@ -2,6 +2,7 @@
 // Submodule of HeliosRobotSystem
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #include "ArmorPredictor.hpp"
+#include <rclcpp/logging.hpp>
 
 namespace helios_cv {
 ArmorPredictor::ArmorPredictor(const APParams& params) {
@@ -268,6 +269,7 @@ double ArmorPredictor::orientation2yaw(const geometry_msgs::msg::Quaternion& ori
     tf2::fromMsg(orientation, tf_q);
     double roll, pitch, yaw;
     tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
+    // RCLCPP_INFO(logger_, "roll %f pitch %f yaw %f", roll, pitch, yaw);
     // Make yaw change continuous
     yaw = last_yaw_ + angles::shortest_angular_distance(last_yaw_, yaw);
     last_yaw_ = yaw;
