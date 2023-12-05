@@ -74,6 +74,7 @@ void VehicleObserver::init() {
             0,      0,      0,      0,      0,      0,      0,      0,      q_r;
         return q;
     };
+    // update_R - observation noise covariance matrix
     auto update_R = [this](const Eigen::VectorXd &z) -> Eigen::MatrixXd {
         Eigen::DiagonalMatrix<double, 4> r;
         double x = params_.ekf_params.r_xyz_factor;
