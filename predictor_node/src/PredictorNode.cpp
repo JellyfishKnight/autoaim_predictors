@@ -10,7 +10,7 @@
  */
 
 #include "PredictorNode.hpp"
-#include <armor_predictor/ArmorPredictor.hpp>
+#include <armor_predictor/VehicleObserver.hpp>
 #include <memory>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rate.hpp>
@@ -49,7 +49,6 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
         //     params_.pnp_solver.energy_armor_width,
         //     params_.pnp_solver.energy_armor_height
         // });
-        armor_predictor_->set_cam_info(camera_info);
         cam_info_sub_.reset();
     });
     // create publishers and subscribers
@@ -114,9 +113,9 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
 }
 
 void PredictorNode::init_predictors() {
-    armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
+    armor_predictor_ = std::make_shared<VehicleObserver>(VOParams{
         params_.target_frame,
-        APParams::EKFParams{
+        VOParams::EKFParams{
             params_.armor_predictor.ekf.sigma2_q_xyz,
             params_.armor_predictor.ekf.sigma2_q_yaw,
             params_.armor_predictor.ekf.sigma2_q_r,
@@ -292,9 +291,9 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
 void PredictorNode::update_predictor_params() {
     if (params_.autoaim_mode) {
         armor_predictor_.reset();
-        armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
+        armor_predictor_ = std::make_shared<VehicleObserver>(VOParams{
             params_.target_frame,
-            APParams::EKFParams{
+            VOParams::EKFParams{
                 params_.armor_predictor.ekf.sigma2_q_xyz,
                 params_.armor_predictor.ekf.sigma2_q_yaw,
                 params_.armor_predictor.ekf.sigma2_q_r,
