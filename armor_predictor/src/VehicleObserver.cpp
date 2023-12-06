@@ -90,7 +90,6 @@ void VehicleObserver::init() {
 autoaim_interfaces::msg::Target VehicleObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
     dt_ = dt;
     if (dt_ > 0.1) {
-        RCLCPP_INFO(logger_, "target lost!");
         find_state_ = LOST;
     }
     // 回传数据

@@ -217,8 +217,10 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     // if distance is under prediction threshold, use vehicle observe,
     // otherwise use armor predictor
     if (last_target_distance_ > params_.armor_predictor.prediction_thres) {
+        RCLCPP_WARN(logger_, "armor mode!");
         use_vehicle_observe_ = false;
     } else {
+        RCLCPP_WARN(logger_, "vehicle mode!");
         use_vehicle_observe_ = true;
     }
     target.header.stamp = armors_msg->header.stamp;

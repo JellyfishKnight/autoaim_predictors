@@ -32,7 +32,7 @@ void ArmorPredictor::init_kalman() {
     auto q = [this]() {
         double t = dt_, x = params_.kf_params.sigma2_q_xyz;
         double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
-        Eigen::MatrixXd q(9, 9);
+        Eigen::MatrixXd q(6, 6);
         //  xc      yc      zc       vxc     vyc     vzc     
         q <<q_x_x,  0,      0,      q_x_vx, 0,      0,      
             0,      q_x_x,  0,      0,      q_x_vx, 0,          
@@ -43,7 +43,7 @@ void ArmorPredictor::init_kalman() {
         return q;
     };
     auto r = [this](const Eigen::VectorXd & z) {
-        Eigen::DiagonalMatrix<double, 4> r;
+        Eigen::DiagonalMatrix<double, 3> r;
         double x = params_.kf_params.r_xyz_factor;
         r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]);
         return r;
