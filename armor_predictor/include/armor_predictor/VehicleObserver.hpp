@@ -89,11 +89,6 @@ private:
     // kalman utilities
     double dz_;
     double dt_ = 0.008f;
-    double s2qxyz_;
-    double s2qyaw_;
-    double s2qr_;
-    double r_xyz_factor_;
-    double r_yaw_;
     ExtendedKalmanFilter ekf_;
 
     void update_target_type(const autoaim_interfaces::msg::Armor& armor);
