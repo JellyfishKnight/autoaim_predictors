@@ -134,8 +134,8 @@ void PredictorNode::init_predictors() {
     vehicle_observer_->init();
     armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
         APParams::KFParams{
-            params_.armor_predictor.ekf.sigma2_q_xyz,
-            params_.armor_predictor.ekf.r_xyz_factor
+            params_.armor_predictor.kf.sigma2_q_xyz,
+            params_.armor_predictor.kf.r_xyz_factor
         },
         static_cast<int>(params_.armor_predictor.max_lost),
         static_cast<int>(params_.armor_predictor.max_detect),
@@ -217,14 +217,13 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     // if distance is under prediction threshold, use vehicle observe,
     // otherwise use armor predictor
     if (last_target_distance_ > params_.armor_predictor.prediction_thres) {
-        RCLCPP_WARN(logger_, "armor mode!");
         use_vehicle_observe_ = false;
     } else {
-        RCLCPP_WARN(logger_, "vehicle mode!");
         use_vehicle_observe_ = true;
     }
     target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = params_.target_frame;
+    // RCLCPP_WARN(logger_, "vx: %f, vy %f, vz: %f", target.velocity.x, target.velocity.y, target.velocity.z);
     target_pub_->publish(target);
     if (params_.debug) {
         // publish visualization marker
@@ -344,8 +343,8 @@ void PredictorNode::update_predictor_params() {
         vehicle_observer_->init();    
         armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
             APParams::KFParams{
-                params_.armor_predictor.ekf.sigma2_q_xyz,
-                params_.armor_predictor.ekf.r_xyz_factor
+                params_.armor_predictor.kf.sigma2_q_xyz,
+                params_.armor_predictor.kf.r_xyz_factor
             },
             static_cast<int>(params_.armor_predictor.max_lost),
             static_cast<int>(params_.armor_predictor.max_detect),

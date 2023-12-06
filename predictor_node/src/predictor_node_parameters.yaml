@@ -36,6 +36,15 @@ predictor_node:
         type: double,
         default_value: 0.005
       }
+    kf: 
+      sigma2_q_xyz: {
+        type: double,
+        default_value: 20.0,
+      }
+      r_xyz_factor: {
+        type: double,
+        default_value: 0.05,
+      }
     prediction_thres: {
       type: double,
       default_value: 3.5,
