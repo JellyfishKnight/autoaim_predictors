@@ -12,13 +12,13 @@ ArmorPredictor::ArmorPredictor(const APParams& params) {
 void ArmorPredictor::init_kalman() {
     auto f = [this] (const Eigen::VectorXd& ) {
         Eigen::MatrixXd f(6, 6);
-        //   x, y, z, vx, vy, vz
-        f << 1, 0, 0, 1, 0, 0, 
-             0, 1, 0, 0, 1, 0, 
-             0, 0, 1, 0, 0, 1, 
-             0, 0, 0, 1, 0, 0, 
-             0, 0, 0, 0, 1, 0, 
-             0, 0, 0, 0, 0, 1;
+        //   x,   y,   z,   vx,  vy,  vz
+        f << 1,   0,   0,   dt_, 0,   0, 
+             0,   1,   0,   0,   dt_, 0, 
+             0,   0,   1,   0,   0,   dt_, 
+             0,   0,   0,   1,   0,   0, 
+             0,   0,   0,   0,   1,   0, 
+             0,   0,   0,   0,   0,   1;
         return f;
     };
     auto h = [](const Eigen::VectorXd & x) {
