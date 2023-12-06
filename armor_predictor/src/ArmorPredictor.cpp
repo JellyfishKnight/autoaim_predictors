@@ -1,4 +1,6 @@
 #include "ArmorPredictor.hpp"
+#include <Eigen/src/Core/Matrix.h>
+#include <rclcpp/logging.hpp>
 
 namespace helios_cv {
 
@@ -96,7 +98,7 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
             }
         }
         // Check if the distance and yaw difference of closest armor are within the threshold
-        if (min_position_error < params_.max_match_distance) {
+        if (min_position_error < params_.min_match_distance) {
             // Matched armor found
             matched = true;
             auto position = tracking_armor_.pose.position;
@@ -106,7 +108,12 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
         } else if (judge_spinning(same_id_armor)) {
             // Matched armor not found, but there is only one armor with the same id
             // take this case as the target is spinning and armor jumped
-            
+            RCLCPP_INFO(logger_, "Armor updated!");
+            // Shallow refresh kalman, keep velocity, refresh position
+            Eigen::VectorXd target_state(6);
+            target_state << same_id_armor.pose.position.x, same_id_armor.pose.position.y, same_id_armor.pose.position.z, 
+                            target_state_(3), target_state_(4), target_state_(5);
+            kalman_filter_.set_state(target_state);
         } else {
             // No matched armor found
             RCLCPP_WARN(logger_, "No matched armor found!");
@@ -146,7 +153,24 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
 }
 
 bool ArmorPredictor::judge_spinning(const autoaim_interfaces::msg::Armor& armor) {
-    
+    update_target_type(armor);
+    auto position = armor.pose.position;
+    Eigen::Vector3d current_position(position.x, position.y, position.z);
+    Eigen::Vector3d infer_position = state2position(target_state_);
+    // if the distance between current position and infer position is too large, then the state is wrong
+    if ((current_position - infer_position).norm() > params_.max_match_distance) {
+        target_state_(0) = position.x;                // x
+        target_state_(1) = position.y;                // y
+        target_state_(2) = position.z;                // z
+        target_state_(3) = 0;                         // vxc
+        target_state_(4) = 0;                         // vyc
+        target_state_(5) = 0;                         // vzc
+        RCLCPP_INFO(logger_, "Reset state!");
+        kalman_filter_.set_state(target_state_);
+        return false;
+    } else {
+        return true;
+    }
 }
 
 autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {

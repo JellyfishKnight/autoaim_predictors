@@ -25,6 +25,7 @@ typedef struct ArmorPredictorParams {
     KFParams kf_params;
     int max_lost;
     int max_detect;
+    double min_match_distance;
     double max_match_distance;
     double lost_time_thresh;
     std::string target_frame;
@@ -55,6 +56,7 @@ private:
     APParams params_;
 
     autoaim_interfaces::msg::Armor tracking_armor_;
+    autoaim_interfaces::msg::Armor last_armor_;
     std::string armor_type_;
     std::string tracking_number_;
     TargetType target_type_;
