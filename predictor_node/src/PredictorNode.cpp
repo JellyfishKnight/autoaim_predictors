@@ -10,7 +10,9 @@
  */
 
 #include "PredictorNode.hpp"
+#include <Eigen/src/Core/Matrix.h>
 #include <armor_predictor/VehicleObserver.hpp>
+#include <autoaim_interfaces/msg/detail/target__struct.hpp>
 #include <memory>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rate.hpp>
@@ -76,6 +78,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
         [this](const std_srvs::srv::Trigger::Request::SharedPtr,
                std_srvs::srv::Trigger::Response::SharedPtr response) {
         if (params_.autoaim_mode) {
+            vehicle_observer_->find_state_ = LOST;
             armor_predictor_->find_state_ = LOST;
             response->success = true;
             RCLCPP_INFO(this->get_logger(), "Tracker reset!");
@@ -113,7 +116,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
 }
 
 void PredictorNode::init_predictors() {
-    armor_predictor_ = std::make_shared<VehicleObserver>(VOParams{
+    vehicle_observer_ = std::make_shared<VehicleObserver>(VOParams{
         params_.target_frame,
         VOParams::EKFParams{
             params_.armor_predictor.ekf.sigma2_q_xyz,
@@ -128,7 +131,18 @@ void PredictorNode::init_predictors() {
         params_.armor_predictor.max_match_yaw_diff,
         params_.armor_predictor.lost_time_thres_
     });
-    armor_predictor_->init();
+    vehicle_observer_->init();
+    armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
+        APParams::KFParams{
+            params_.armor_predictor.ekf.sigma2_q_xyz,
+            params_.armor_predictor.ekf.r_xyz_factor
+        },
+        static_cast<int>(params_.armor_predictor.max_lost),
+        static_cast<int>(params_.armor_predictor.max_detect),
+        params_.armor_predictor.min_match_distance,
+        params_.armor_predictor.max_match_yaw_diff,
+        params_.armor_predictor.lost_time_thres_
+    });
     ///TODO: init energy_predictor
     // energy_predictor = std::make_shared<EnergyPredictor>();
 }
@@ -187,7 +201,26 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
             return;
         }
     }
-    auto target = armor_predictor_->predict_target(*armors_msg, dt);
+    // choose predict mode
+    autoaim_interfaces::msg::Target target;
+    // keep both trackers update
+    if (use_vehicle_observe_) {
+        target = vehicle_observer_->predict_target(*armors_msg, dt);
+        armor_predictor_->predict_target(*armors_msg, dt);
+    } else {
+        target = armor_predictor_->predict_target(*armors_msg, dt);
+        vehicle_observer_->predict_target(*armors_msg, dt);
+    }
+    Eigen::Vector3d target_position = Eigen::Vector3d{target.position.x, target.position.y, target.position.z} + 
+                                    Eigen::Vector3d{target.velocity.x, target.velocity.y, target.velocity.z} * dt;
+    last_target_distance_ = target_position.norm();
+    // if distance is under prediction threshold, use vehicle observe,
+    // otherwise use armor predictor
+    if (last_target_distance_ > params_.armor_predictor.prediction_thres) {
+        use_vehicle_observe_ = false;
+    } else {
+        use_vehicle_observe_ = true;
+    }
     target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = params_.target_frame;
     target_pub_->publish(target);
@@ -250,7 +283,7 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
         armor_marker_.action = visualization_msgs::msg::Marker::ADD;
         armor_marker_.scale.y = target.armor_type == "SMALL" ? 0.135 : 0.23;
         bool is_current_pair = true;
-        size_t a_n = static_cast<int>(armor_predictor_->target_type_) + 2;
+        size_t a_n = static_cast<int>(vehicle_observer_->target_type_) + 2;
         geometry_msgs::msg::Point p_a;
         double r = 0;
         for (size_t i = 0; i < a_n; i++) {
@@ -290,8 +323,8 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
 
 void PredictorNode::update_predictor_params() {
     if (params_.autoaim_mode) {
-        armor_predictor_.reset();
-        armor_predictor_ = std::make_shared<VehicleObserver>(VOParams{
+        vehicle_observer_.reset();
+        vehicle_observer_ = std::make_shared<VehicleObserver>(VOParams{
             params_.target_frame,
             VOParams::EKFParams{
                 params_.armor_predictor.ekf.sigma2_q_xyz,
@@ -306,7 +339,18 @@ void PredictorNode::update_predictor_params() {
             params_.armor_predictor.max_match_yaw_diff,
             params_.armor_predictor.lost_time_thres_
         });
-        armor_predictor_->init();    
+        vehicle_observer_->init();    
+        armor_predictor_ = std::make_shared<ArmorPredictor>(APParams{
+            APParams::KFParams{
+                params_.armor_predictor.ekf.sigma2_q_xyz,
+                params_.armor_predictor.ekf.r_xyz_factor
+            },
+            static_cast<int>(params_.armor_predictor.max_lost),
+            static_cast<int>(params_.armor_predictor.max_detect),
+            params_.armor_predictor.min_match_distance,
+            params_.armor_predictor.max_match_yaw_diff,
+            params_.armor_predictor.lost_time_thres_
+        });
     } else {
 
     }

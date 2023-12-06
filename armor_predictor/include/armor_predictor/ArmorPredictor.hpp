@@ -14,9 +14,6 @@
 
 namespace helios_cv {
 
-typedef enum {LOST, TEMP_LOST, TRACKING, DETECTING} TrakerState;
-typedef enum {BALANCE, OUTPOST, NORMAL} TargetType;
-
 typedef struct ArmorPredictorParams {
     typedef struct KFParams {
         double sigma2_q_xyz;
@@ -40,6 +37,8 @@ public:
     autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt);
 
     void reset_kalman();
+    
+    uint8_t find_state_ = LOST;
 private:
     void init_kalman();
 
@@ -61,7 +60,6 @@ private:
     std::string tracking_number_;
     TargetType target_type_;
 
-    uint8_t find_state_ = LOST;
     uint8_t lost_cnt_ = 0;
     uint8_t detect_cnt_ = 0;
     double dt_ = 0.015;

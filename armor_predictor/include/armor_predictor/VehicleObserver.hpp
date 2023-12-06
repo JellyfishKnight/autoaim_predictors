@@ -24,9 +24,6 @@
 
 namespace helios_cv {
 
-typedef enum {LOST, TEMP_LOST, TRACKING, DETECTING} TrakerState;
-typedef enum {BALANCE, OUTPOST, NORMAL} TargetType;
-
 typedef struct VehicleObserverParams{
     std::string target_frame;
     typedef struct EKFParams{

@@ -36,6 +36,11 @@ predictor_node:
         type: double,
         default_value: 0.005
       }
+    prediction_thres: {
+      type: double,
+      default_value: 3.5,
+      description: "predictor threshold, under meter"
+    }
     max_lost: {
       type: double,
       default_value: 5,
@@ -45,6 +50,11 @@ predictor_node:
       type: double,
       default_value: 5,
       description: "max detect times of armor"
+    }
+    min_match_distance: {
+      type: double,
+      default_value: 0.8,
+      description: "min match distance of armor"
     }
     max_match_distance: {
       type: double,
