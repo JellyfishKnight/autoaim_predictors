@@ -211,8 +211,7 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
         target = armor_predictor_->predict_target(*armors_msg, dt);
         vehicle_observer_->predict_target(*armors_msg, dt);
     }
-    Eigen::Vector3d target_position = Eigen::Vector3d{target.position.x, target.position.y, target.position.z} + 
-                                    Eigen::Vector3d{target.velocity.x, target.velocity.y, target.velocity.z} * dt;
+    Eigen::Vector3d target_position = Eigen::Vector3d{target.position.x, target.position.y, target.position.z};
     last_target_distance_ = target_position.norm();
     // if distance is under prediction threshold, use vehicle observe,
     // otherwise use armor predictor
