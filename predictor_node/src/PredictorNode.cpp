@@ -303,7 +303,7 @@ void PredictorNode::publish_armor_markers(autoaim_interfaces::msg::Target target
             armor_marker_.id = i;
             armor_marker_.pose.position = p_a;
             tf2::Quaternion q;
-            q.setRPY(0, target.armor_type == "outpost" ? -0.26 : 0.26, tmp_yaw);
+            q.setRPY(0, target.id == "outpost" ? -0.26 : 0.26, tmp_yaw);
             armor_marker_.pose.orientation = tf2::toMsg(q);
             marker_array.markers.emplace_back(armor_marker_);
         }
