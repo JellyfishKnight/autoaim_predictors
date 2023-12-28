@@ -47,7 +47,7 @@ predictor_node:
       }
     prediction_thres: {
       type: double,
-      default_value: 8.0,
+      default_value: 3.5,
       description: "predictor threshold, under meter"
     }
     max_lost: {
