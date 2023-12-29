@@ -35,7 +35,6 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
-#include <visualization_msgs/msg/marker_array.hpp>
 #include "autoaim_interfaces/msg/armors.hpp"
 #include "autoaim_interfaces/msg/target.hpp"
 #include <std_srvs/srv/trigger.hpp>
@@ -85,16 +84,6 @@ private:
     std::shared_ptr<tf2_ros::TransformListener> tf2_listener_;
     message_filters::Subscriber<autoaim_interfaces::msg::Armors> armors_sub_;
     std::shared_ptr<tf2_filter> tf2_filter_;
-
-    // Visualization marker publisher
-    visualization_msgs::msg::Marker position_marker_;
-    visualization_msgs::msg::Marker linear_v_marker_;
-    visualization_msgs::msg::Marker angular_v_marker_;
-    visualization_msgs::msg::Marker armor_marker_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
-    void init_markers();
-    void publish_armor_markers(autoaim_interfaces::msg::Target target);
-    void publish_energy_markers(autoaim_interfaces::msg::Target target);
 
     // Camera info part
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
