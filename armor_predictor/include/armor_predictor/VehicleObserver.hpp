@@ -21,6 +21,7 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/convert.h>
+#include <utility>
 
 namespace helios_cv {
 
@@ -91,6 +92,8 @@ private:
     void update_target_type(const autoaim_interfaces::msg::Armor& armor);
 
     double orientation2yaw(const geometry_msgs::msg::Quaternion& orientation);
+
+    std::pair<bool, int> match_armor(autoaim_interfaces::msg::Armor& armor, const Eigen::VectorXd& prediction);
 
     void reset_kalman();
 
