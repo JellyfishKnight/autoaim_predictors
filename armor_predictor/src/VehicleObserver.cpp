@@ -116,7 +116,6 @@ autoaim_interfaces::msg::Target VehicleObserver::predict_target(autoaim_interfac
                 tracking_armor_ = armor;
             }
         }
-        target_xyz_ = Eigen::Vector3d(tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z);
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
         armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
         reset_kalman();
@@ -162,7 +161,6 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
         double yaw_diff = DBL_MAX;
         double min_position_error = DBL_MAX;
 
-        target_xyz_ = Eigen::Vector3d(tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z);
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
         armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
 
@@ -196,6 +194,7 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
             } else if (match_info.second == 1 || match_info.second == 3) {
                 // Matched armor found, but is not facing armor
                 // Take this situation as target spinning and armor jumped
+                matched = true;
                 armor_jump(tracking_armor_);
             } else {
                 RCLCPP_WARN(logger_, "Measurement is wrong, drop it");
@@ -382,26 +381,13 @@ void VehicleObserver::armor_jump(const autoaim_interfaces::msg::Armor tracking_a
     double yaw = orientation2yaw(tracking_armor.pose.orientation);
     update_target_type(tracking_armor);
     target_state_(3) = yaw;
+    // normal target has two radius and two pair of height
     if (target_type_ == TargetType::NORMAL) {
         dz_ = target_state_(2) - tracking_armor.pose.position.z;
         target_state_(2) = tracking_armor.pose.position.z;
         std::swap(target_state_(8), last_r_);
     }
     RCLCPP_INFO(logger_, "Armor Updated!");
-    auto position = tracking_armor.pose.position;
-    Eigen::Vector3d current_position(position.x, position.y, position.z);
-    Eigen::Vector3d infer_position = state2position(target_state_);
-    // if the distance between current position and infer position is too large, then the state is wrong
-    if ((current_position - infer_position).norm() > params_.max_match_distance) {
-        double r = target_state_(8);
-        target_state_(0) = position.x + r * cos(yaw); // xc
-        target_state_(1) = position.y + r * sin(yaw); // yc
-        target_state_(2) = position.z;                // zc
-        target_state_(4) = 0;                         // vxc
-        target_state_(5) = 0;                         // vyc
-        target_state_(6) = 0;                         // vzc
-        RCLCPP_WARN(logger_, "Reset State!");
-    }
     ekf_.setState(target_state_);
 }
 

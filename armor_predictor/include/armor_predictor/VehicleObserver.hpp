@@ -82,8 +82,7 @@ private:
     autoaim_interfaces::msg::Armor tracking_armor_;
     // 目标车辆状态
     Eigen::VectorXd target_state_;
-    //目标xyz
-    Eigen::Vector3d target_xyz_ = {0, 0, 0};
+
     // kalman utilities
     double dz_;
     double dt_ = 0.008f;
