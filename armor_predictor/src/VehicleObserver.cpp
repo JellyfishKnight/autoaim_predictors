@@ -198,7 +198,6 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
                     (match_info.second == 0 && target_type_ == BALANCE)) {
                 // Matched armor found, but is not facing armor
                 // Take this situation as target spinning and armor jumped
-                matched = true;
                 armor_jump(tracking_armor_);
             } else {
                 RCLCPP_WARN(logger_, "Measurement is wrong, drop it");
@@ -206,6 +205,13 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
                 RCLCPP_DEBUG(logger_, "Position Diff : %f", min_position_error);
             }
         }
+    }
+    // Outpost has a fixed radius and rotation speed, and usually it won't move
+    if (target_type_ == TargetType::OUTPOST) {
+        target_state_(8) = 0.26;
+        target_state_(4) = 0;                   // vxc
+        target_state_(5) = 0;                   // vyc
+        target_state_(6) = 0;                   // vzc
     }
     // Prevent radius from spreading
     if (target_state_(8) < 0.2) {
@@ -235,7 +241,7 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
     } else if (find_state_ == TEMP_LOST) {
         if (!matched) {
             lost_cnt_++;
-            RCLCPP_WARN(logger_, "max lost %d, lost_cnt %d", params_.max_lost, lost_cnt_);
+            // RCLCPP_WARN(logger_, "max lost %d, lost_cnt %d", params_.max_lost, lost_cnt_);
             if (lost_cnt_ > params_.max_lost) {
                 RCLCPP_WARN(logger_, "Target lost!");
                 find_state_ = LOST;
@@ -277,8 +283,8 @@ std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor
             r = radius_1;
             position[2] = zc;
         }
-        position[0] = xc - r * cos(tmp_yaw);
-        position[1] = yc - r * sin(tmp_yaw);
+        position[0] = xc - r * std::cos(tmp_yaw);
+        position[1] = yc - r * std::sin(tmp_yaw);
         armor_position_sequence.emplace_back(position);
         armor_yaw_sequence.emplace_back(tmp_yaw);
     }
@@ -289,28 +295,32 @@ std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor
     Eigen::Vector3d armor_position(armor.pose.position.x, 
                                     armor.pose.position.y, 
                                     armor.pose.position.z);
+    double tracking_armor_yaw = orientation2yaw(armor.pose.orientation);
     for (int i = 0; i < a_n; i++) {
         double diff = (armor_position_sequence[i] - armor_position).norm();
         if (diff < min_position_diff) {
             min_position_diff = diff;
             matched_index = i;
-            yaw_diff = std::abs(angles::shortest_angular_distance(orientation2yaw(armor.pose.orientation), armor_yaw_sequence[i]));
+            yaw_diff = std::abs(angles::shortest_angular_distance(tracking_armor_yaw, armor_yaw_sequence[i]));
         }
     }
-    RCLCPP_WARN(logger_, "match index %d", matched_index);
     // Take large position diff with every armor as wrong detect or ekf diverged
-    if (min_position_diff > params_.max_match_distance) {
+    if ((min_position_diff > params_.max_match_distance && matched_index == 0) || 
+            (yaw_diff > params_.max_match_yaw_diff && yaw_diff < 0.7)) {
+        RCLCPP_WARN(logger_, "match index %d", matched_index);
         RCLCPP_WARN(logger_, "min_position_diff %f", min_position_diff);
-        RCLCPP_WARN(logger_, "yaw_diff %f", yaw_diff);
-
+        for (int i = 0; i < a_n; i++) {
+            RCLCPP_WARN(logger_, "yaw %d: %f", i, armor_yaw_sequence[i]);
+        }
+        RCLCPP_WARN(logger_, "target yaw %f, yaw diff: %f", orientation2yaw(armor.pose.orientation), yaw_diff);
         if (yaw_diff > params_.max_match_yaw_diff) {
             double r = target_state_(8);
-            target_state_(0) = armor_position_sequence[matched_index][0] + r * cos(armor_yaw_sequence[matched_index]);  // xc
-            target_state_(1) = armor_position_sequence[matched_index][1] + r * sin(armor_yaw_sequence[matched_index]);  // yc
-            target_state_(2) = armor_position_sequence[matched_index][2];                 // zc
-            target_state_(3) = 0;                   // vxc
-            target_state_(4) = 0;                   // vyc
-            target_state_(5) = 0;                   // vzc
+            target_state_(0) = armor.pose.position.x + r * cos(tracking_armor_yaw);  // xc
+            target_state_(1) = armor.pose.position.y + r * sin(tracking_armor_yaw);  // yc
+            target_state_(2) = armor.pose.position.z;                 // zc
+            target_state_(4) = 0;                   // vxc
+            target_state_(5) = 0;                   // vyc
+            target_state_(6) = 0;                   // vzc
             ekf_.setState(target_state_);
             RCLCPP_ERROR(logger_, "Reset State!");
         }
@@ -322,19 +332,6 @@ std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor
         RCLCPP_WARN(logger_, "Match failed cause index is wrong");
         return {false, -1};
     }
-    // Test yaw diff, if yaw diff is large than we expected, take this as a inaccurate result, 
-    // then fix it with the predition yaw
-    // if (yaw_diff > params_.max_match_yaw_diff) {
-    //     RCLCPP_WARN(logger_, "yaw diff: %f , index %d", yaw_diff, matched_index);
-    //     RCLCPP_WARN(logger_, "armor yaw is %f, fix it to %f", 
-    //              orientation2yaw(armor.pose.orientation), armor_yaw_sequence[matched_index]);
-    //     tf2::Quaternion tf_q;
-    //     tf2::fromMsg(armor.pose.orientation, tf_q);
-    //     double roll, pitch, yaw;
-    //     tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
-    //     tf_q.setRPY(roll, pitch, armor_yaw_sequence[matched_index]);
-    //     armor.pose.orientation = tf2::toMsg(tf_q); 
-    // }
     return {true, matched_index};
 }
 
@@ -373,7 +370,7 @@ double VehicleObserver::orientation2yaw(const geometry_msgs::msg::Quaternion& or
 
 void VehicleObserver::reset_kalman() {
     RCLCPP_DEBUG(logger_, "Kalman Refreshed!");
-    // 初始化卡尔曼滤波器
+    // reset kalman
     double armor_x = tracking_armor_.pose.position.x;
     double armor_y = tracking_armor_.pose.position.y;
     double armor_z = tracking_armor_.pose.position.z;
@@ -401,7 +398,7 @@ void VehicleObserver::armor_jump(const autoaim_interfaces::msg::Armor tracking_a
         target_state_(2) = tracking_armor.pose.position.z;
         std::swap(target_state_(8), last_r_);
     }
-    RCLCPP_INFO(logger_, "Armor Updated!");
+    RCLCPP_INFO(logger_, "Armor jump!");
     ekf_.setState(target_state_);
 }
 
