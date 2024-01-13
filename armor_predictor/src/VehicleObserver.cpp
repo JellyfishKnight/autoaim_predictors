@@ -4,7 +4,9 @@
 #include "VehicleObserver.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <Eigen/src/Geometry/Quaternion.h>
+#include <angles/angles.h>
 #include <autoaim_interfaces/msg/detail/armor__struct.hpp>
+#include <autoaim_utilities/Armor.hpp>
 #include <cfloat>
 #include <rclcpp/logging.hpp>
 #include <tf2/LinearMath/Quaternion.h>
@@ -191,7 +193,9 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
                 double measured_yaw = orientation2yaw(tracking_armor_.pose.orientation);
                 Eigen::Vector4d measurement(position.x, position.y, position.z, measured_yaw);
                 target_state_ = ekf_.Correct(measurement);
-            } else if (match_info.second == 1 || match_info.second == 3) {
+            } else if (match_info.second == 1 || match_info.second == 3 || 
+                    (match_info.second == 2 && target_type_ == OUTPOST) || 
+                    (match_info.second == 0 && target_type_ == BALANCE)) {
                 // Matched armor found, but is not facing armor
                 // Take this situation as target spinning and armor jumped
                 matched = true;
@@ -231,6 +235,7 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
     } else if (find_state_ == TEMP_LOST) {
         if (!matched) {
             lost_cnt_++;
+            RCLCPP_WARN(logger_, "max lost %d, lost_cnt %d", params_.max_lost, lost_cnt_);
             if (lost_cnt_ > params_.max_lost) {
                 RCLCPP_WARN(logger_, "Target lost!");
                 find_state_ = LOST;
@@ -244,7 +249,6 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
 }
 
 std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor& armor, const Eigen::VectorXd& prediction) {
-    bool matched = false;
     int matched_index = 0;
     auto position = armor.pose.position;
     Eigen::Vector3d position_vec(position.x, position.y, position.z);
@@ -281,6 +285,7 @@ std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor
     // Match armor, get min position diff armor first.
     // Cause position is more confident than orientation
     double min_position_diff = DBL_MAX;
+    double yaw_diff;
     Eigen::Vector3d armor_position(armor.pose.position.x, 
                                     armor.pose.position.y, 
                                     armor.pose.position.z);
@@ -289,39 +294,48 @@ std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor
         if (diff < min_position_diff) {
             min_position_diff = diff;
             matched_index = i;
+            yaw_diff = std::abs(angles::shortest_angular_distance(orientation2yaw(armor.pose.orientation), armor_yaw_sequence[i]));
         }
     }
-    // Take large position diff with every armor as wrong detect
+    RCLCPP_WARN(logger_, "match index %d", matched_index);
+    // Take large position diff with every armor as wrong detect or ekf diverged
     if (min_position_diff > params_.max_match_distance) {
+        RCLCPP_WARN(logger_, "min_position_diff %f", min_position_diff);
+        RCLCPP_WARN(logger_, "yaw_diff %f", yaw_diff);
+
+        if (yaw_diff > params_.max_match_yaw_diff) {
+            double r = target_state_(8);
+            target_state_(0) = armor_position_sequence[matched_index][0] + r * cos(armor_yaw_sequence[matched_index]);  // xc
+            target_state_(1) = armor_position_sequence[matched_index][1] + r * sin(armor_yaw_sequence[matched_index]);  // yc
+            target_state_(2) = armor_position_sequence[matched_index][2];                 // zc
+            target_state_(3) = 0;                   // vxc
+            target_state_(4) = 0;                   // vyc
+            target_state_(5) = 0;                   // vzc
+            ekf_.setState(target_state_);
+            RCLCPP_ERROR(logger_, "Reset State!");
+        }
         return {false, -1};
     }
     // Check if tracking armor is the back armor, 
-    // if it is, take this as the position error, fix it with prediction position
-    if (matched_index == 2) {
-        RCLCPP_WARN(logger_, "armor position is wrong, fix it to facing armor");
-        armor.pose.position.x = armor_position_sequence[0][0];
-        armor.pose.position.y = armor_position_sequence[0][1];
-        armor.pose.position.z = armor_position_sequence[0][2];
-        tf2::Quaternion tf_q;
-        tf2::fromMsg(armor.pose.orientation, tf_q);
-        double roll, pitch, yaw;
-        tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
-        tf_q.setRPY(roll, pitch, armor_yaw_sequence[0]);
-        return {true, 0};
+    // if it is, take this as the position error
+    if (matched_index == 2 && target_type_ != OUTPOST) {
+        RCLCPP_WARN(logger_, "Match failed cause index is wrong");
+        return {false, -1};
     }
     // Test yaw diff, if yaw diff is large than we expected, take this as a inaccurate result, 
     // then fix it with the predition yaw
-    double yaw_diff = std::abs(armor_yaw_sequence[matched_index] - orientation2yaw(armor.pose.orientation));
-    if (yaw_diff < params_.max_match_yaw_diff) {
-        RCLCPP_WARN(logger_, "armor yaw is in wrong, fix it to %f", armor_yaw_sequence[matched_index]);
-        tf2::Quaternion tf_q;
-        tf2::fromMsg(armor.pose.orientation, tf_q);
-        double roll, pitch, yaw;
-        tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
-        tf_q.setRPY(roll, pitch, armor_yaw_sequence[matched_index]);
-        armor.pose.orientation = tf2::toMsg(tf_q);
-    }
-    return {matched, matched_index};
+    // if (yaw_diff > params_.max_match_yaw_diff) {
+    //     RCLCPP_WARN(logger_, "yaw diff: %f , index %d", yaw_diff, matched_index);
+    //     RCLCPP_WARN(logger_, "armor yaw is %f, fix it to %f", 
+    //              orientation2yaw(armor.pose.orientation), armor_yaw_sequence[matched_index]);
+    //     tf2::Quaternion tf_q;
+    //     tf2::fromMsg(armor.pose.orientation, tf_q);
+    //     double roll, pitch, yaw;
+    //     tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
+    //     tf_q.setRPY(roll, pitch, armor_yaw_sequence[matched_index]);
+    //     armor.pose.orientation = tf2::toMsg(tf_q); 
+    // }
+    return {true, matched_index};
 }
 
 std::vector<double> VehicleObserver::get_state() const {
