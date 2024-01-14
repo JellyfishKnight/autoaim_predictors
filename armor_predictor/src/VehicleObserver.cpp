@@ -315,12 +315,12 @@ std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor
     // Take large position diff with every armor as wrong detect or ekf diverged
     if ((min_position_diff > params_.max_match_distance && matched_index == 0) || 
             (yaw_diff > params_.max_match_yaw_diff && yaw_diff < 0.7)) {
-        RCLCPP_WARN(logger_, "match index %d, yaw index %d", matched_index, yaw_min_index);
-        RCLCPP_WARN(logger_, "min_position_diff %f", min_position_diff);
-        for (int i = 0; i < a_n; i++) {
-            RCLCPP_WARN(logger_, "yaw %d: %f", i, armor_yaw_sequence[i]);
-        }
-        RCLCPP_WARN(logger_, "target yaw %f, yaw diff: %f", orientation2yaw(armor.pose.orientation), yaw_diff);
+        // RCLCPP_WARN(logger_, "match index %d, yaw index %d", matched_index, yaw_min_index);
+        // RCLCPP_WARN(logger_, "min_position_diff %f", min_position_diff);
+        // for (int i = 0; i < a_n; i++) {
+        //     RCLCPP_WARN(logger_, "yaw %d: %f", i, armor_yaw_sequence[i]);
+        // }
+        // RCLCPP_WARN(logger_, "target yaw %f, yaw diff: %f", orientation2yaw(armor.pose.orientation), yaw_diff);
         if (yaw_diff > params_.max_match_yaw_diff) {
             double r = target_state_(8);
             // target_state_(0) = armor.pose.position.x + r * cos(tracking_armor_yaw);  // xc
@@ -343,6 +343,13 @@ std::pair<bool, int> VehicleObserver::match_armor(autoaim_interfaces::msg::Armor
         RCLCPP_WARN(logger_, "Match failed cause index is wrong");
         return {false, -1};
     }
+    RCLCPP_WARN(logger_, "match index %d, yaw index %d", matched_index, yaw_min_index);
+    RCLCPP_WARN(logger_, "min_position_diff %f", min_position_diff);
+    for (int i = 0; i < a_n; i++) {
+        RCLCPP_WARN(logger_, "yaw %d: %f", i, armor_yaw_sequence[i]);
+    }
+    RCLCPP_WARN(logger_, "target yaw %f, yaw diff: %f", orientation2yaw(armor.pose.orientation), yaw_diff);
+
     return {true, matched_index};
 }
 
