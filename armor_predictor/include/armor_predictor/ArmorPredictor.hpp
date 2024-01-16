@@ -1,4 +1,3 @@
-#include <autoaim_interfaces/msg/detail/armor__struct.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <Eigen/Core>
@@ -12,9 +11,11 @@
 
 #include <cstdint>
 
+#include "BaseObserver.hpp"
+
 namespace helios_cv {
 
-typedef struct ArmorPredictorParams {
+typedef struct ArmorPredictorParams : public BaseObserverParams {
     typedef struct KFParams {
         double sigma2_q_xyz;
         double r_xyz_factor;
@@ -26,19 +27,17 @@ typedef struct ArmorPredictorParams {
     double max_match_distance;
     double lost_time_thresh;
     std::string target_frame;
-}APParams;
+}ArmorPredictorParams;
 
-class ArmorPredictor {
+class ArmorPredictor : public BaseObserver {
 public:
-    ArmorPredictor(const APParams& params);
+    ArmorPredictor(const ArmorPredictorParams& params);
 
     ~ArmorPredictor();
 
-    autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt);
+    autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) override;
 
-    void reset_kalman();
-    
-    uint8_t find_state_ = LOST;
+    void reset_kalman() override;
 private:
     void init_kalman();
 
@@ -46,31 +45,17 @@ private:
 
     bool judge_spinning(const autoaim_interfaces::msg::Armor& armor);
 
-    Eigen::Vector3d state2position(const Eigen::VectorXd& state);
+    Eigen::Vector3d state2position(const Eigen::VectorXd& state) override;
 
-    void armor_predict(autoaim_interfaces::msg::Armors armors);
+    void track_armor(autoaim_interfaces::msg::Armors armors) override;
 
-    void update_target_type(const autoaim_interfaces::msg::Armor& armor);
+    void update_target_type(const autoaim_interfaces::msg::Armor& armor) override;
 
-    APParams params_;
-
-    autoaim_interfaces::msg::Armor tracking_armor_;
-    autoaim_interfaces::msg::Armor last_armor_;
-    std::string armor_type_;
-    std::string tracking_number_;
-    TargetType target_type_;
-
-    uint8_t lost_cnt_ = 0;
-    uint8_t detect_cnt_ = 0;
-    double dt_ = 0.015;
-
-    Eigen::Vector3d target_xyz_;
-    Eigen::Vector3d target_v_xyz_;
-    Eigen::VectorXd target_state_;
+    ArmorPredictorParams params_;
 
     EigenKalmanFilter kalman_filter_;
 
-    rclcpp::Logger logger_ = rclcpp::get_logger("armor_predictor");
+    rclcpp::Logger logger_ = rclcpp::get_logger("ArmorPredictor");
 };
 
 } // helios_cv
