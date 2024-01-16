@@ -12,7 +12,13 @@
 namespace helios_cv {
 
 typedef struct OutpostObserverParams : public BaseObserverParams {
-    
+    typedef struct DCMParams {
+        double sigma2_q_yaw;
+        double sigma2_q_xyz;
+        double r_xyz_factor;
+        double r_yaw_factor;
+    } DDMParams;
+    DDMParams ekf_params;
 }OutpostObserverParams;
 
 
@@ -36,7 +42,6 @@ private:
     void init() final;
 
     double radius_ = 0.26;
-    double v_yaw_ = 0.4;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("OutpostObserver");
 };

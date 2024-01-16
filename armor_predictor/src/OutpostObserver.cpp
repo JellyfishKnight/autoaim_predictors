@@ -27,12 +27,13 @@ void OutpostObserver::init() {
         return x_new;
     };
     auto j_f = [this](const Eigen::VectorXd &) {
-        Eigen::MatrixXd f(4, 4);
-        //  xc   yc   zc   yaw  
-        f <<1,   0,   0,   0,   
-            0,   1,   0,   0,  
-            0,   0,   1,   0,  
-            0,   0,   0,   1; 
+        Eigen::MatrixXd f(5, 5);
+        //  xc   yc   zc   yaw  vyaw
+        f <<1,   0,   0,   0,   0,  // xc
+            0,   1,   0,   0,   0,  // yc
+            0,   0,   1,   0,   0,  // zc
+            0,   0,   0,   1,   dt_,// yaw
+            0,   0,   0,   0,   1;  // vyaw
         return f;
     };
     auto h = [this](const Eigen::VectorXd & x) {
@@ -45,39 +46,37 @@ void OutpostObserver::init() {
         return z;
     };
     auto j_h = [this](const Eigen::VectorXd & x) {
-        Eigen::MatrixXd h(4, 4);
+        Eigen::MatrixXd h(4, 5);
         double yaw = x(3);
-        //  xc   yc   zc   yaw               
-        h <<1,   0,   0,   radius_*sin(yaw), 
-            0,   1,   0,   -radius_*cos(yaw),
-            0,   0,   1,   0,          
-            0,   0,   0,   1;    
+        //  xc   yc   zc   yaw               vyaw
+        h <<1,   0,   0,   radius_*sin(yaw), 0,
+            0,   1,   0,   -radius_*cos(yaw),0,
+            0,   0,   1,   0,                0,
+            0,   0,   0,   1,                0;
         return h;
     };
     // update_Q - process noise covariance matrix
     auto update_Q = [this]() -> Eigen::MatrixXd {
-        double t = dt_, x = params_.ekf_params.sigma2_q_xyz, 
-                y = params_.ekf_params.sigma2_q_yaw, 
-                r = params_.ekf_params.sigma2_q_r;
-        double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
+        double t = dt_, x = params_.ekf_params.sigma2_q_xyz, y = params_.ekf_params.sigma2_q_yaw;
+        double q_x_x = pow(t, 4) / 4 * x;
         double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
-        double q_r = pow(t, 4) / 4 * r;
-        Eigen::MatrixXd q(4, 4);
-        //  xc      yc      zc      yaw    
-        q <<q_x_x,  0,      0,      0,    
-            0,      q_x_x,  0,      0,      
-            0,      0,      q_x_x,  0,   
-            0,      0,      0,      q_y_y;
+        Eigen::MatrixXd q(5, 5);
+        //  xc      yc      zc      yaw    vyaw
+        q <<q_x_x,  0,      0,      0,     0,
+            0,      q_x_x,  0,      0,     0,  
+            0,      0,      q_x_x,  0,     0,
+            0,      0,      0,      q_y_y, q_y_vy,
+            0,      0,      0,      q_y_vy,q_vy_vy;
         return q;
     };
     // update_R - observation noise covariance matrix
     auto update_R = [this](const Eigen::VectorXd &z) -> Eigen::MatrixXd {
         Eigen::DiagonalMatrix<double, 4> r;
         double x = params_.ekf_params.r_xyz_factor;
-        r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), params_.ekf_params.r_yaw;
+        r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), params_.ekf_params.r_yaw_factor;
         return r;
     };
-    Eigen::DiagonalMatrix<double, 9> p0;
+    Eigen::DiagonalMatrix<double, 5> p0;
     p0.setIdentity();
     ekf_ = ExtendedKalmanFilter{f, h, j_f, j_h, update_Q,  update_R, p0};
 
@@ -123,12 +122,12 @@ autoaim_interfaces::msg::Target OutpostObserver::predict_target(autoaim_interfac
             target.velocity.x = 0;
             target.velocity.y = 0;
             target.velocity.z = 0;
-            target.v_yaw = v_yaw_;
+            target.v_yaw = target_state_(4);
             target.radius_1 = target.radius_2 = radius_;
             target.dz = 0;
             target.id = tracking_number_;
             target.tracking = true;
-            target.armor_type = armor_type_;
+            target.armor_type = "SMALL";
             target.armors_num = 3;
         } else {
             target.tracking = false;
@@ -190,21 +189,6 @@ void OutpostObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
             RCLCPP_DEBUG(logger_, "Position Diff : %f", min_position_error);
             RCLCPP_DEBUG(logger_, "Same ID Number: %d", same_id_armors_count);
         }
-    }
-    // // Outpost has a fixed radius and rotation speed, and usually it won't move
-    // if (target_type_ == TargetType::OUTPOST) {
-    //     target_state_(8) = 0.26;
-    //     target_state_(4) = 0;                   // vxc
-    //     target_state_(5) = 0;                   // vyc
-    //     target_state_(6) = 0;                   // vzc
-    // }
-    // Prevent radius from spreading
-    if (target_state_(8) < 0.2) {
-        target_state_(8) = 0.2;
-        ekf_.setState(target_state_);
-    } else if (target_state_(8) > 0.4) {
-        target_state_(8) = 0.4;
-        ekf_.setState(target_state_);
     }
     // Update state machine
     if (find_state_ == DETECTING) {
@@ -268,7 +252,7 @@ void OutpostObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_ar
     Eigen::Vector3d infer_position = state2position(target_state_);
     // if the distance between current position and infer position is too large, then the state is wrong
     if ((current_position - infer_position).norm() > params_.max_match_distance) {
-        double r = target_state_(8);
+        double r = radius_;
         target_state_(0) = position.x + r * cos(yaw); // xc
         target_state_(1) = position.y + r * sin(yaw); // yc
         target_state_(2) = position.z;                // zc
