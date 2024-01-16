@@ -1,5 +1,6 @@
 #include "ArmorObserver.hpp"
 #include <Eigen/src/Core/Matrix.h>
+#include <cmath>
 #include <rclcpp/logging.hpp>
 
 namespace helios_cv {
@@ -11,35 +12,43 @@ ArmorObserver::ArmorObserver(const ArmorObserverParams& params) {
 
 void ArmorObserver::init() {
     auto f = [this] (const Eigen::VectorXd& ) {
-        Eigen::MatrixXd f(6, 6);
-        //   x,   y,   z,   vx,  vy,  vz
-        f << 1,   0,   0,   dt_, 0,   0, 
-             0,   1,   0,   0,   dt_, 0, 
-             0,   0,   1,   0,   0,   dt_, 
-             0,   0,   0,   1,   0,   0, 
-             0,   0,   0,   0,   1,   0, 
-             0,   0,   0,   0,   0,   1;
+        Eigen::MatrixXd f(9, 9);
+        double t2 = 0.5 * dt_ * dt_;
+        //   x,   y,   z,   vx,  vy,  vz,  ax,  ay,  az
+        f << 1,   0,   0,   dt_, 0,   0,   t2,  0,   0,
+             0,   1,   0,   0,   dt_, 0,   0,   t2,  0,
+             0,   0,   1,   0,   0,   dt_, 0,   0,   t2,
+             0,   0,   0,   1,   0,   0,   dt_, 0,   0,
+             0,   0,   0,   0,   1,   0,   0,   dt_, 0,
+             0,   0,   0,   0,   0,   1,   0,   0,   dt_,
+             0,   0,   0,   0,   0,   0,   1,   0,   0,
+             0,   0,   0,   0,   0,   0,   0,   1,   0,
+             0,   0,   0,   0,   0,   0,   0,   0,   1;
         return f;
     };
     auto h = [](const Eigen::VectorXd & x) {
-        Eigen::MatrixXd h(3, 6);
-        //  x    y    z    vx   vy   vz  
-        h <<1,   0,   0,   0,   0,   0,
-            0,   1,   0,   0,   0,   0,
-            0,   0,   1,   0,   0,   0;
+        Eigen::MatrixXd h(3, 9);
+        //  x    y    z    vx   vy   vz   ax   ay   az
+        h <<1,   0,   0,   0,   0,   0,   0,   0,   0,
+            0,   1,   0,   0,   0,   0,   0,   0,   0,
+            0,   0,   1,   0,   0,   0,   0,   0,   0;
         return h;
     };
     auto q = [this]() {
         double t = dt_, x = params_.kf_params.sigma2_q_xyz;
-        double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
-        Eigen::MatrixXd q(6, 6);
-        //  xc      yc      zc       vxc     vyc     vzc     
-        q <<q_x_x,  0,      0,      q_x_vx, 0,      0,      
-            0,      q_x_x,  0,      0,      q_x_vx, 0,          
-            0,      0,      q_x_x,  0,      0,      q_x_vx,  
-            q_x_vx, 0,      0,      q_vx_vx,0,      0,       
-            0,      q_x_vx, 0,      0,     q_vx_vx, 0, 
-            0,      0,      q_x_vx, 0,      0,      q_vx_vx;
+        double q_x_x = std::pow(t, 4) / 4 * x, q_x_vx = std::pow(t, 3) / 2 * x, q_x_ax = std::pow(t, 2) / 2,
+               q_vx_vx = std::pow(t, 2), q_vx_ax = t, q_ax_ax = 1;
+        Eigen::MatrixXd q(9, 9);
+        //  xc      yc      zc      vxc     vyc     vzc     axc     ayc     azc
+        q <<q_x_x,  0,      0,      q_x_vx, 0,      0,      q_x_ax, 0,      0,
+            0,      q_x_x,  0,      0,      q_x_vx, 0,      0,      q_x_ax, 0,    
+            0,      0,      q_x_x,  0,      0,      q_x_vx, 0,      0,      q_x_ax,
+            q_x_vx, 0,      0,      q_vx_vx,0,      0,      q_vx_ax,0,      0,
+            0,      q_x_vx, 0,      0,     q_vx_vx, 0,      0,      q_vx_ax,0,
+            0,      0,      q_x_vx, 0,      0,      q_vx_vx,0,      0,      q_vx_ax,
+            q_x_ax, 0,      0,      q_vx_ax,0,      0,      q_ax_ax,0,      0,
+            0,      q_x_ax, 0,      0,      q_vx_ax,0,      0,      q_ax_ax,0,
+            0,      0,      q_x_ax, 0,      0,      q_vx_ax,0,      0,      q_ax_ax;
         return q;
     };
     auto r = [this](const Eigen::VectorXd & z) {
@@ -102,7 +111,7 @@ void ArmorObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
             // Matched armor found
             matched = true;
             auto position = tracking_armor_.pose.position;
-            // Update KF
+            // Update KF 
             Eigen::Vector3d measurement(position.x, position.y, position.z);
             target_state_ = kalman_filter_.correct(measurement);
         } else if (judge_spinning(same_id_armor)) {
@@ -206,16 +215,15 @@ autoaim_interfaces::msg::Target ArmorObserver::predict_target(autoaim_interfaces
         track_armor(armors);
         params_.max_lost = static_cast<int>(params_.lost_time_thresh / dt_);
         if (find_state_ == TRACKING || find_state_ == TEMP_LOST) {
-            // 数max_lost
             target.position.x = target_state_(0);
             target.position.y = target_state_(1);
             target.position.z = target_state_(2);
             target.velocity.x = target_state_(3);
             target.velocity.y = target_state_(4);
-            target.velocity.z = target_state_(5);
-            target.yaw = 0;
-            target.v_yaw = 0;
-            target.radius_1 = 0;
+            target.velocity.z = target_state_(5);            // max_lost
+            target.yaw = target_state_(6);                                  // reuse as ax
+            target.v_yaw = target_state_(7);                                // reuse as ay
+            target.radius_1 = target_state_(8);                             // reuse as az
             target.radius_2 = 0;
             target.dz = 0;
             target.id = tracking_number_;
