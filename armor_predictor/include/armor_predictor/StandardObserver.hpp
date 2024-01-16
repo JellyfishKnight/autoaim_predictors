@@ -27,13 +27,13 @@ class StandardObserver : public BaseObserver {
 public:
     StandardObserver(const StandardObserverParams& params);
 
-    StandardObserver() = default;
-
     autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) override;
 
     void reset_kalman() override;
 
 protected:
+    StandardObserver() = default;
+
     void track_armor(autoaim_interfaces::msg::Armors armors) override;
 
     virtual double orientation2yaw(const geometry_msgs::msg::Quaternion& orientation);

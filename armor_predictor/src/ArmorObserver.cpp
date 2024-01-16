@@ -1,15 +1,15 @@
-#include "ArmorPredictor.hpp"
+#include "ArmorObserver.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <rclcpp/logging.hpp>
 
 namespace helios_cv {
 
-ArmorPredictor::ArmorPredictor(const APParams& params) {
+ArmorObserver::ArmorObserver(const ArmorObserverParams& params) {
     params_ = params;
-    init_kalman();
+    init();
 }
 
-void ArmorPredictor::init_kalman() {
+void ArmorObserver::init() {
     auto f = [this] (const Eigen::VectorXd& ) {
         Eigen::MatrixXd f(6, 6);
         //   x,   y,   z,   vx,  vy,  vz
@@ -53,13 +53,13 @@ void ArmorPredictor::init_kalman() {
     kalman_filter_ = EigenKalmanFilter{f, h, q, r, p0};
 }
 
-Eigen::Vector3d ArmorPredictor::state2position(const Eigen::VectorXd& state) {
+Eigen::Vector3d ArmorObserver::state2position(const Eigen::VectorXd& state) {
     Eigen::Vector3d position;
     position << state[0], state[1], state[2];
     return position;
 }
 
-void ArmorPredictor::update_target_type(const autoaim_interfaces::msg::Armor& armor) {
+void ArmorObserver::update_target_type(const autoaim_interfaces::msg::Armor& armor) {
     if (armor.type == static_cast<int>(ArmorType::LARGE) && (tracking_number_ == "3" || tracking_number_ == "4" || tracking_number_ == "5")) {
         target_type_ = TargetType::BALANCE;
     } else if (tracking_number_ == "outpost") {
@@ -69,7 +69,7 @@ void ArmorPredictor::update_target_type(const autoaim_interfaces::msg::Armor& ar
     }
 }
 
-void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
+void ArmorObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     Eigen::VectorXd prediction = kalman_filter_.predict();
     bool matched = false;
     // Use KF prediction as default target state if no matched armor is found
@@ -152,7 +152,7 @@ void ArmorPredictor::armor_predict(autoaim_interfaces::msg::Armors armors) {
 
 }
 
-bool ArmorPredictor::judge_spinning(const autoaim_interfaces::msg::Armor& armor) {
+bool ArmorObserver::judge_spinning(const autoaim_interfaces::msg::Armor& armor) {
     update_target_type(armor);
     auto position = armor.pose.position;
     Eigen::Vector3d current_position(position.x, position.y, position.z);
@@ -173,7 +173,7 @@ bool ArmorPredictor::judge_spinning(const autoaim_interfaces::msg::Armor& armor)
     }
 }
 
-autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
+autoaim_interfaces::msg::Target ArmorObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
     dt_ = dt;
     if (dt > 0.1) {
         RCLCPP_INFO(logger_, "Target Lost!");
@@ -197,14 +197,13 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
                 tracking_armor_ = armor;
             }
         }
-        target_xyz_ = Eigen::Vector3d(tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z);
         armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
         reset_kalman();
         tracking_number_ = tracking_armor_.number;
         find_state_ = DETECTING;
         update_target_type(tracking_armor_);
     } else {
-        armor_predict(armors);
+        track_armor(armors);
         params_.max_lost = static_cast<int>(params_.lost_time_thresh / dt_);
         if (find_state_ == TRACKING || find_state_ == TEMP_LOST) {
             // 数max_lost
@@ -230,15 +229,12 @@ autoaim_interfaces::msg::Target ArmorPredictor::predict_target(autoaim_interface
     return target;
 }
 
-void ArmorPredictor::reset_kalman() {
+void ArmorObserver::reset_kalman() {
     RCLCPP_DEBUG(logger_, "Kalman Refreshed!");
     Eigen::VectorXd target_state(6);
-    target_state << target_xyz_[0], target_xyz_[1], target_xyz_[2], 0, 0, 0;
+    target_state << tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z, 0, 0, 0;
     target_state_ = target_state;
     kalman_filter_.set_state(target_state_);
 }
-
-
-ArmorPredictor::~ArmorPredictor() {}
 
 } // helios_cv

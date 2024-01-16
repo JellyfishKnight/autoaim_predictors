@@ -5,21 +5,35 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "BaseObserver.hpp"
 #include "StandardObserver.hpp"
 
 namespace helios_cv {
 
+typedef struct BalanceObserverParams : public BaseObserverParams {
+    
+}BalanceObserverParams;
+
 class BalanceObserver : public StandardObserver {
-public:
-    BalanceObserver();
+public:    
+    BalanceObserver(const BalanceObserverParams& params);
 
-    autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) override;
+    autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) final;
 
-    void reset_kalman() override;
+    void reset_kalman() final;
 
+protected:
+    void track_armor(autoaim_interfaces::msg::Armors armors) final;
 
+    void armor_jump(const autoaim_interfaces::msg::Armor same_id_armor) final;
+
+    Eigen::Vector3d state2position(const Eigen::VectorXd& state) final;
+
+    void init() final;
 private:
+    BalanceObserverParams params_;
 
+    rclcpp::Logger logger_ = rclcpp::get_logger("BalanceObserver");
 };
 
 

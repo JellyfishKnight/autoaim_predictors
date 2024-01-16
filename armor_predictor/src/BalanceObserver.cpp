@@ -1,7 +1,7 @@
 // created by liuhan on 2023/1/16
 // Submodule of HeliosRobotSystem
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
-#include "StandardObserver.hpp"
+#include "BalanceObserver.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <Eigen/src/Geometry/Quaternion.h>
 #include <angles/angles.h>
@@ -14,13 +14,13 @@
 #include <vector>
 
 namespace helios_cv {
-StandardObserver::StandardObserver(const StandardObserverParams& params) {
+BalanceObserver::BalanceObserver(const BalanceObserverParams& params) {
     params_ =  params;
     find_state_ = LOST;
     init();
 }
 
-void StandardObserver::init() {
+void BalanceObserver::init() {
     // init kalman filter
     auto f = [this](const Eigen::VectorXd & x) {
         Eigen::VectorXd x_new = x;
@@ -97,7 +97,7 @@ void StandardObserver::init() {
 
 }
 
-autoaim_interfaces::msg::Target StandardObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
+autoaim_interfaces::msg::Target BalanceObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
     dt_ = dt;
     if (dt_ > 0.1) {
         find_state_ = LOST;
@@ -154,7 +154,7 @@ autoaim_interfaces::msg::Target StandardObserver::predict_target(autoaim_interfa
     return target;
 }
 
-void StandardObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
+void BalanceObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     bool matched = false;
     Eigen::VectorXd prediction = ekf_.Predict();
     // Use KF prediction as default target state if no matched armor is found
@@ -247,20 +247,8 @@ void StandardObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     }
 }
 
-double StandardObserver::orientation2yaw(const geometry_msgs::msg::Quaternion& orientation) {
-    // Get armor yaw
-    tf2::Quaternion tf_q;
-    tf2::fromMsg(orientation, tf_q);
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
-    // RCLCPP_INFO(logger_, "roll %f pitch %f yaw %f", roll, pitch, yaw);
-    // Make yaw change continuous
-    yaw = last_yaw_ + angles::shortest_angular_distance(last_yaw_, yaw);
-    last_yaw_ = yaw;
-    return yaw;
-}
 
-void StandardObserver::reset_kalman() {
+void BalanceObserver::reset_kalman() {
     RCLCPP_DEBUG(logger_, "Kalman Refreshed!");
     // reset kalman
     double armor_x = tracking_armor_.pose.position.x;
@@ -284,11 +272,6 @@ void StandardObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_a
     double yaw = orientation2yaw(same_id_armor.pose.orientation);
     update_target_type(same_id_armor);
     target_state_(3) = yaw;
-    // normal target has two radius and two pair of height
-    dz_ = target_state_(2) - same_id_armor.pose.position.z;
-    target_state_(2) = same_id_armor.pose.position.z;
-    std::swap(target_state_(8), last_r_);
-
     auto position = same_id_armor.pose.position;
     Eigen::Vector3d current_position(position.x, position.y, position.z);
     Eigen::Vector3d infer_position = state2position(target_state_);
@@ -307,7 +290,7 @@ void StandardObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_a
     ekf_.setState(target_state_);
 }
 
-Eigen::Vector3d StandardObserver::state2position(const Eigen::VectorXd& state) {
+Eigen::Vector3d BalanceObserver::state2position(const Eigen::VectorXd& state) {
     double car_center_x = state(0);
     double car_center_y = state(1);
     double car_center_z = state(2);
