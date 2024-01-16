@@ -22,7 +22,7 @@ predictor_node:
       }
       sigma2_q_yaw: {
         type: double,
-        default_value: 100.0,
+        default_value: 50.0,
       }
       sigma2_q_r: {
         type: double,

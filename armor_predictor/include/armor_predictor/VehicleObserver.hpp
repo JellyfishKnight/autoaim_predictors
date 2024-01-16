@@ -92,8 +92,6 @@ private:
 
     double orientation2yaw(const geometry_msgs::msg::Quaternion& orientation);
 
-    std::pair<bool, int> match_armor(autoaim_interfaces::msg::Armor& armor, const Eigen::VectorXd& prediction);
-
     void reset_kalman();
 
     void armor_jump(const autoaim_interfaces::msg::Armor tracking_armor);
