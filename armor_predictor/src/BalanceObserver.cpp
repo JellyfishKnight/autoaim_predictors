@@ -8,6 +8,7 @@
 #include <autoaim_interfaces/msg/detail/armor__struct.hpp>
 #include <autoaim_utilities/Armor.hpp>
 #include <cfloat>
+#include <cmath>
 #include <rclcpp/logging.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -30,37 +31,33 @@ void BalanceObserver::init() {
         x_new(3) += x(7) * dt_;
         return x_new;
     };
-    auto j_f = [this](const Eigen::VectorXd &) {
-        Eigen::MatrixXd f(9, 9);
-        //  xc   yc   zc   yaw  vxc  vyc  vzc  vyaw r    
-        f <<1,   0,   0,   0,   dt_, 0,   0,   0,   0, 
-            0,   1,   0,   0,   0,   dt_, 0,   0,   0, 
-            0,   0,   1,   0,   0,   0,   dt_, 0,   0, 
-            0,   0,   0,   1,   0,   0,   0,   dt_, 0,   
-            0,   0,   0,   0,   1,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   1,   0,   0,   0, 
-            0,   0,   0,   0,   0,   0,   1,   0,   0, 
-            0,   0,   0,   0,   0,   0,   0,   1,   0,   
-            0,   0,   0,   0,   0,   0,   0,   0,   1;
+    auto j_f = [this](const Eigen::VectorXd &X) {
+        Eigen::MatrixXd f(8, 8);
+        //  xc  yc v                   z  r  yaw                           vyaw
+        f << 1, 0, cos(X(5, 0)) * dt_, 0, 0,-X(2, 0) * sin(X(5, 0)) * dt_, 0,
+             0, 1, sin(X(5, 0)) * dt_, 0, 0, X(2, 0) * cos(X(5, 0)) * dt_, 0,
+             0, 0, 1,                  0, 0, 0,                            0,
+             0, 0, 0,                  1, 0, 0,                            0,
+             0, 0, 0,                  0, 1, 0,                            0,
+             0, 0, 0,                  0, 0, 1,                            dt_,
+             0, 0, 0,                  0, 0, 0,                            1;
         return f;
     };
-    auto h = [](const Eigen::VectorXd & x) {
+    auto h = [](const Eigen::VectorXd & X) {
         Eigen::VectorXd z(4);
-        double xc = x(0), yc = x(1), yaw = x(3), r = x(8);
-        z(0) = xc - r * cos(yaw);  // xa
-        z(1) = yc - r * sin(yaw);  // ya
-        z(2) = x(2);               // za
-        z(3) = x(3);               // yaw  
+        z(0) = X(0) + X(4) * cos(X(5) + i * M_PI)  
+        z(1) = X(1) + X(4) * sin(X(5) + i * M_PI);  
+        z(2) = X(3);               
+        z(3) = X(5) + i * M_PI;                
         return z;
     };
-    auto j_h = [](const Eigen::VectorXd & x) {
-        Eigen::MatrixXd h(4, 9);
-        double yaw = x(3), r = x(8);
-        //  xc   yc   zc   yaw         vxc  vyc  vzc  vyaw   r          
-        h <<1,   0,   0,   r*sin(yaw), 0,   0,   0,   0,   -cos(yaw),
-            0,   1,   0,   -r*cos(yaw),0,   0,   0,   0,   -sin(yaw),
-            0,   0,   1,   0,          0,   0,   0,   0,   0,        
-            0,   0,   0,   1,          0,   0,   0,   0,   0;
+    auto j_h = [](const Eigen::VectorXd & X) {
+        Eigen::MatrixXd h(4, 7);
+        //   xc yc v  z  r                     yaw                          vyaw
+        h << 1, 0, 0, 0, cos(X(5) + i * M_PI),-X(4) * sin(X(5) + i * M_PI), 0,
+             0, 1, 0, 0, sin(X(5) + i * M_PI), X(4) * cos(X(5) + i * M_PI), 0,
+             0, 0, 0, 1, 0,                    0,                           0,
+             0, 0, 0, 0, 0,                    1,                           0;
         return h;
     };
     // update_Q - process noise covariance matrix
@@ -114,13 +111,17 @@ autoaim_interfaces::msg::Target BalanceObserver::predict_target(autoaim_interfac
         double min_distance = DBL_MAX;
         tracking_armor_ = armors.armors[0];
         for (auto armor : armors.armors) {
-            if (armor.distance_to_image_center < min_distance) {
+            if (armor.distance_to_image_center < min_distance && armor.type == 0) {
                 min_distance = armor.distance_to_image_center;
                 tracking_armor_ = armor;
             }
         }
+        if (tracking_armor_.type == 0) {
+            target.tracking = false;
+            return target;
+        }
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
-        armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
+        armor_type_ = "LARGE";
         reset_kalman();
         tracking_number_ = tracking_armor_.number;
         find_state_ = DETECTING;
@@ -139,12 +140,12 @@ autoaim_interfaces::msg::Target BalanceObserver::predict_target(autoaim_interfac
             target.velocity.z = target_state_(6);
             target.v_yaw = target_state_(7);
             target.radius_1 = target_state_(8);
-            target.radius_2 = last_r_;
-            target.dz = dz_;
+            target.radius_2 = 0;
+            target.dz = 0;
             target.id = tracking_number_;
             target.tracking = true;
-            target.armor_type = armor_type_;
-            target.armors_num = 4;
+            target.armor_type = "LARGE";
+            target.armors_num = 2;
         } else {
             target.tracking = false;
         }
@@ -167,7 +168,7 @@ void BalanceObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
         double min_position_error = DBL_MAX;
 
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
-        armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
+        armor_type_ = "LARGE";
         for (const auto& armor : armors.armors) {
             // Only consider armors with the same id
             if (armor.number == tracking_number_) {

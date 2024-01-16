@@ -58,13 +58,12 @@ void OutpostObserver::init() {
     // update_Q - process noise covariance matrix
     auto update_Q = [this]() -> Eigen::MatrixXd {
         double t = dt_, x = params_.ekf_params.sigma2_q_xyz, y = params_.ekf_params.sigma2_q_yaw;
-        double q_x_x = pow(t, 4) / 4 * x;
-        double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
+        double q_y_y = pow(t, 3) / 3 * y, q_y_vy = pow(t, 2) / 2 * x, q_vy_vy = t * y;
         Eigen::MatrixXd q(5, 5);
         //  xc      yc      zc      yaw    vyaw
-        q <<q_x_x,  0,      0,      0,     0,
-            0,      q_x_x,  0,      0,     0,  
-            0,      0,      q_x_x,  0,     0,
+        q <<x,      0,      0,      0,     0,
+            0,      x,      0,      0,     0,  
+            0,      0,      x,      0,     0,
             0,      0,      0,      q_y_y, q_y_vy,
             0,      0,      0,      q_y_vy,q_vy_vy;
         return q;
@@ -99,13 +98,13 @@ autoaim_interfaces::msg::Target OutpostObserver::predict_target(autoaim_interfac
         double min_distance = DBL_MAX;
         tracking_armor_ = armors.armors[0];
         for (auto armor : armors.armors) {
-            if (armor.distance_to_image_center < min_distance) {
+            if (armor.distance_to_image_center < min_distance && armor.type == 0) {
                 min_distance = armor.distance_to_image_center;
                 tracking_armor_ = armor;
             }
         }
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
-        armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
+        armor_type_ = "SMALL";
         reset_kalman();
         tracking_number_ = tracking_armor_.number;
         find_state_ = DETECTING;
@@ -151,7 +150,7 @@ void OutpostObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
         double min_position_error = DBL_MAX;
 
         target_yaw_ = orientation2yaw(tracking_armor_.pose.orientation);
-        armor_type_ = tracking_armor_.type == 0 ? "SMALL" : "LARGE";
+        armor_type_ = "SMALL" ;
         for (const auto& armor : armors.armors) {
             // Only consider armors with the same id
             if (armor.number == tracking_number_) {
