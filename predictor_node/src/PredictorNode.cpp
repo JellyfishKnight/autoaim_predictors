@@ -134,7 +134,7 @@ void PredictorNode::init_predictors() {
         },
         static_cast<int>(params_.armor_predictor.max_lost),
         static_cast<int>(params_.armor_predictor.max_detect),
-        params_.armor_predictor.min_match_distance,
+        params_.armor_predictor.max_match_distance,
         params_.armor_predictor.max_match_yaw_diff,
         params_.armor_predictor.lost_time_thres_
     });
@@ -228,7 +228,7 @@ void PredictorNode::update_predictor_params() {
             },
             static_cast<int>(params_.armor_predictor.max_lost),
             static_cast<int>(params_.armor_predictor.max_detect),
-            params_.armor_predictor.min_match_distance,
+            params_.armor_predictor.max_match_distance,
             params_.armor_predictor.max_match_yaw_diff,
             params_.armor_predictor.lost_time_thres_
         });

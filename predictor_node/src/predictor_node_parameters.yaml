@@ -60,11 +60,6 @@ predictor_node:
       default_value: 5,
       description: "max detect times of armor"
     }
-    min_match_distance: {
-      type: double,
-      default_value: 0.4,
-      description: "min match distance of armor"
-    }
     max_match_distance: {
       type: double,
       default_value: 0.35,
