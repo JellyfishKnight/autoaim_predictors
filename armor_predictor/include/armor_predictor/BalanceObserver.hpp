@@ -5,11 +5,11 @@
 
 #include <rclcpp/rclcpp.hpp>
 
-#include "BaseObserver.hpp"
+#include "StandardObserver.hpp"
 
 namespace helios_cv {
 
-class BalanceObserver : public BaseObserver {
+class BalanceObserver : public StandardObserver {
 public:
     BalanceObserver();
 
@@ -19,10 +19,6 @@ public:
 
 
 private:
-    // 上一次的装甲板状态
-    double last_yaw_ = 0;
-    double last_y_ = 0;
-    double last_r_ = 0;
 
 };
 

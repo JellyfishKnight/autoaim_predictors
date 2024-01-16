@@ -1,7 +1,7 @@
-// created by liuhan on 2023/9/15
+// created by liuhan on 20214/1/16
 // Submodule of HeliosRobotSystem
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
-#include "VehicleObserver.hpp"
+#include "OutpostObserver.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <Eigen/src/Geometry/Quaternion.h>
 #include <angles/angles.h>
@@ -14,52 +14,44 @@
 #include <vector>
 
 namespace helios_cv {
-VehicleObserver::VehicleObserver(const VOParams& params) {
+OutpostObserver::OutpostObserver(const OutpostObserverParams& params) {
     params_ =  params;
     find_state_ = LOST;
+    init();
 }
 
-void VehicleObserver::init() {
+void OutpostObserver::init() {
     // init kalman filter
     auto f = [this](const Eigen::VectorXd & x) {
         Eigen::VectorXd x_new = x;
-        x_new(0) += x(4) * dt_;
-        x_new(1) += x(5) * dt_;
-        x_new(2) += x(6) * dt_;
-        x_new(3) += x(7) * dt_;
         return x_new;
     };
     auto j_f = [this](const Eigen::VectorXd &) {
-        Eigen::MatrixXd f(9, 9);
-        //  xc   yc   zc   yaw  vxc  vyc  vzc  vyaw r    
-        f <<1,   0,   0,   0,   dt_, 0,   0,   0,   0, 
-            0,   1,   0,   0,   0,   dt_, 0,   0,   0, 
-            0,   0,   1,   0,   0,   0,   dt_, 0,   0, 
-            0,   0,   0,   1,   0,   0,   0,   dt_, 0,   
-            0,   0,   0,   0,   1,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   1,   0,   0,   0, 
-            0,   0,   0,   0,   0,   0,   1,   0,   0, 
-            0,   0,   0,   0,   0,   0,   0,   1,   0,   
-            0,   0,   0,   0,   0,   0,   0,   0,   1;
+        Eigen::MatrixXd f(4, 4);
+        //  xc   yc   zc   yaw  
+        f <<1,   0,   0,   0,   
+            0,   1,   0,   0,  
+            0,   0,   1,   0,  
+            0,   0,   0,   1; 
         return f;
     };
-    auto h = [](const Eigen::VectorXd & x) {
+    auto h = [this](const Eigen::VectorXd & x) {
         Eigen::VectorXd z(4);
-        double xc = x(0), yc = x(1), yaw = x(3), r = x(8);
-        z(0) = xc - r * cos(yaw);  // xa
-        z(1) = yc - r * sin(yaw);  // ya
+        double xc = x(0), yc = x(1), yaw = x(3);
+        z(0) = xc - radius_ * cos(yaw);  // xa
+        z(1) = yc - radius_ * sin(yaw);  // ya
         z(2) = x(2);               // za
         z(3) = x(3);               // yaw  
         return z;
     };
-    auto j_h = [](const Eigen::VectorXd & x) {
-        Eigen::MatrixXd h(4, 9);
-        double yaw = x(3), r = x(8);
-        //  xc   yc   zc   yaw         vxc  vyc  vzc  vyaw   r          
-        h <<1,   0,   0,   r*sin(yaw), 0,   0,   0,   0,   -cos(yaw),
-            0,   1,   0,   -r*cos(yaw),0,   0,   0,   0,   -sin(yaw),
-            0,   0,   1,   0,          0,   0,   0,   0,   0,        
-            0,   0,   0,   1,          0,   0,   0,   0,   0;
+    auto j_h = [this](const Eigen::VectorXd & x) {
+        Eigen::MatrixXd h(4, 4);
+        double yaw = x(3);
+        //  xc   yc   zc   yaw               
+        h <<1,   0,   0,   radius_*sin(yaw), 
+            0,   1,   0,   -radius_*cos(yaw),
+            0,   0,   1,   0,          
+            0,   0,   0,   1;    
         return h;
     };
     // update_Q - process noise covariance matrix
@@ -70,17 +62,12 @@ void VehicleObserver::init() {
         double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
         double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
         double q_r = pow(t, 4) / 4 * r;
-        Eigen::MatrixXd q(9, 9);
-        //  xc      yc      zc      yaw     vxc     vyc     vzc     vyaw    r  
-        q <<q_x_x,  0,      0,      0,      q_x_vx, 0,      0,      0,      0,
-            0,      q_x_x,  0,      0,      0,      q_x_vx, 0,      0,      0,  
-            0,      0,      q_x_x,  0,      0,      0,      q_x_vx, 0,      0,
-            0,      0,      0,      q_y_y,  0,      0,      0,      q_y_vy, 0, 
-            q_x_vx, 0,      0,      0,      q_vx_vx,0,      0,      0,      0,
-            0,      q_x_vx, 0,      0,      0,      q_vx_vx,0,      0,      0,
-            0,      0,      q_x_vx, 0,      0,      0,      q_vx_vx,0,      0,
-            0,      0,      0,      q_y_vy, 0,      0,      0,      q_vy_vy,0,
-            0,      0,      0,      0,      0,      0,      0,      0,      q_r;
+        Eigen::MatrixXd q(4, 4);
+        //  xc      yc      zc      yaw    
+        q <<q_x_x,  0,      0,      0,    
+            0,      q_x_x,  0,      0,      
+            0,      0,      q_x_x,  0,   
+            0,      0,      0,      q_y_y;
         return q;
     };
     // update_R - observation noise covariance matrix
@@ -96,7 +83,7 @@ void VehicleObserver::init() {
 
 }
 
-autoaim_interfaces::msg::Target VehicleObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
+autoaim_interfaces::msg::Target OutpostObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
     dt_ = dt;
     if (dt_ > 0.1) {
         find_state_ = LOST;
@@ -126,24 +113,23 @@ autoaim_interfaces::msg::Target VehicleObserver::predict_target(autoaim_interfac
         update_target_type(tracking_armor_);
     } else {
         // get observation
-        armor_predict(armors);
+        track_armor(armors);
         if (find_state_ == TRACKING || find_state_ == TEMP_LOST) {
             // Pack data
             target.position.x = target_state_(0);
             target.position.y = target_state_(1);
             target.position.z = target_state_(2);
             target.yaw = target_state_(3);
-            target.velocity.x = target_state_(4);
-            target.velocity.y = target_state_(5);
-            target.velocity.z = target_state_(6);
-            target.v_yaw = target_state_(7);
-            target.radius_1 = target_state_(8);
-            target.radius_2 = last_r_;
-            target.dz = dz_;
+            target.velocity.x = 0;
+            target.velocity.y = 0;
+            target.velocity.z = 0;
+            target.v_yaw = v_yaw_;
+            target.radius_1 = target.radius_2 = radius_;
+            target.dz = 0;
             target.id = tracking_number_;
             target.tracking = true;
             target.armor_type = armor_type_;
-            target.armors_num = static_cast<int>(target_type_) + 2;
+            target.armors_num = 3;
         } else {
             target.tracking = false;
         }
@@ -153,7 +139,7 @@ autoaim_interfaces::msg::Target VehicleObserver::predict_target(autoaim_interfac
     return target;
 }
 
-void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
+void OutpostObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     bool matched = false;
     Eigen::VectorXd prediction = ekf_.Predict();
     // Use KF prediction as default target state if no matched armor is found
@@ -205,13 +191,13 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
             RCLCPP_DEBUG(logger_, "Same ID Number: %d", same_id_armors_count);
         }
     }
-    // Outpost has a fixed radius and rotation speed, and usually it won't move
-    if (target_type_ == TargetType::OUTPOST) {
-        target_state_(8) = 0.26;
-        target_state_(4) = 0;                   // vxc
-        target_state_(5) = 0;                   // vyc
-        target_state_(6) = 0;                   // vzc
-    }
+    // // Outpost has a fixed radius and rotation speed, and usually it won't move
+    // if (target_type_ == TargetType::OUTPOST) {
+    //     target_state_(8) = 0.26;
+    //     target_state_(4) = 0;                   // vxc
+    //     target_state_(5) = 0;                   // vyc
+    //     target_state_(6) = 0;                   // vzc
+    // }
     // Prevent radius from spreading
     if (target_state_(8) < 0.2) {
         target_state_(8) = 0.2;
@@ -253,40 +239,7 @@ void VehicleObserver::armor_predict(autoaim_interfaces::msg::Armors armors) {
     }
 }
 
-std::vector<double> VehicleObserver::get_state() const {
-    std::vector<double> state;
-    for (int i = 0; i < target_state_.size(); i++) {
-        state.push_back(target_state_(i));
-    }
-    state.push_back(last_r_);
-    state.push_back(dz_);
-    return state;
-}
-
-void VehicleObserver::update_target_type(const autoaim_interfaces::msg::Armor& armor) {
-    if (armor.type == static_cast<int>(ArmorType::LARGE) && (tracking_number_ == "3" || tracking_number_ == "4" || tracking_number_ == "5")) {
-        target_type_ = TargetType::BALANCE;
-    } else if (tracking_number_ == "outpost") {
-        target_type_ = TargetType::OUTPOST;
-    } else {
-        target_type_ = TargetType::NORMAL;
-    }
-}
-
-double VehicleObserver::orientation2yaw(const geometry_msgs::msg::Quaternion& orientation) {
-    // Get armor yaw
-    tf2::Quaternion tf_q;
-    tf2::fromMsg(orientation, tf_q);
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
-    // RCLCPP_INFO(logger_, "roll %f pitch %f yaw %f", roll, pitch, yaw);
-    // Make yaw change continuous
-    yaw = last_yaw_ + angles::shortest_angular_distance(last_yaw_, yaw);
-    last_yaw_ = yaw;
-    return yaw;
-}
-
-void VehicleObserver::reset_kalman() {
+void OutpostObserver::reset_kalman() {
     RCLCPP_DEBUG(logger_, "Kalman Refreshed!");
     // reset kalman
     double armor_x = tracking_armor_.pose.position.x;
@@ -306,16 +259,10 @@ void VehicleObserver::reset_kalman() {
     ekf_.setState(target_state_);
 }
 
-void VehicleObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_armor) {
+void OutpostObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_armor) {
     double yaw = orientation2yaw(same_id_armor.pose.orientation);
     update_target_type(same_id_armor);
     target_state_(3) = yaw;
-    // normal target has two radius and two pair of height
-    if (target_type_ == TargetType::NORMAL) {
-        dz_ = target_state_(2) - same_id_armor.pose.position.z;
-        target_state_(2) = same_id_armor.pose.position.z;
-        std::swap(target_state_(8), last_r_);
-    }
     auto position = same_id_armor.pose.position;
     Eigen::Vector3d current_position(position.x, position.y, position.z);
     Eigen::Vector3d infer_position = state2position(target_state_);
@@ -325,22 +272,19 @@ void VehicleObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_ar
         target_state_(0) = position.x + r * cos(yaw); // xc
         target_state_(1) = position.y + r * sin(yaw); // yc
         target_state_(2) = position.z;                // zc
-        target_state_(4) = 0;                         // vxc
-        target_state_(5) = 0;                         // vyc
-        target_state_(6) = 0;                         // vzc
         RCLCPP_WARN(logger_, "Reset State!");
     }
     RCLCPP_INFO(logger_, "Armor Updated!");
     ekf_.setState(target_state_);
 }
 
-Eigen::Vector3d VehicleObserver::state2position(const Eigen::VectorXd& state) {
+Eigen::Vector3d OutpostObserver::state2position(const Eigen::VectorXd& state) {
     double car_center_x = state(0);
     double car_center_y = state(1);
     double car_center_z = state(2);
-    double r = state(8), yaw = state(3);
-    double armor_x = car_center_x - r * cos(yaw);
-    double armor_y = car_center_y - r * sin(yaw);
+    double yaw = state(3);
+    double armor_x = car_center_x - radius_ * cos(yaw);
+    double armor_y = car_center_y - radius_ * sin(yaw);
     return Eigen::Vector3d(armor_x, armor_y, car_center_z);
 }
 

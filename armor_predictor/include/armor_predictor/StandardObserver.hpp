@@ -12,16 +12,14 @@
 namespace helios_cv {
 
 typedef struct StandardObserverParams : public BaseObserverParams {
-    typedef struct EKFParams {
+    typedef struct DDMParams {
         double sigma2_q_xyz;
-        double sigma2_q_vxyz;
         double sigma2_q_yaw;
-        double sigma2_r_xyz;
-        double sigma2_r_vxyz;
-        double sigma2_r_yaw;
-    } EKFParams;
-    EKFParams ekf_params;
-    double max_match_yaw_diff;
+        double sigma2_q_r;
+        double r_xyz_factor;
+        double r_yaw;
+    } DDMParams;
+    DDMParams ekf_params;
 }StandardObserverParams;
 
 
@@ -29,45 +27,34 @@ class StandardObserver : public BaseObserver {
 public:
     StandardObserver(const StandardObserverParams& params);
 
+    StandardObserver() = default;
+
     autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) override;
 
     void reset_kalman() override;
 
-private:
-    StandardObserverParams params_;
-
-    /**
-     * @brief 
-     * 
-     * @param armors 
-     */
+protected:
     void track_armor(autoaim_interfaces::msg::Armors armors) override;
 
-    // State Machine
-    int lost_cnt_ = 0;
-    int detect_cnt_ = 0;
-    //
-    std::string tracking_number_;
-    // 识别到的目标点
-    double target_yaw_ = 0;
-    std::string armor_type_;
-    autoaim_interfaces::msg::Armor last_armor_;
-
-    autoaim_interfaces::msg::Armor tracking_armor_;
-    // 目标车辆状态
-    Eigen::VectorXd target_state_;
-
-    // kalman utilities
-    double dz_;
-    double dt_ = 0.008f;
-    ExtendedKalmanFilter ekf_;
-
-    double orientation2yaw(const geometry_msgs::msg::Quaternion& orientation);
+    virtual double orientation2yaw(const geometry_msgs::msg::Quaternion& orientation);
 
     void armor_jump(const autoaim_interfaces::msg::Armor same_id_armor) override;
 
     Eigen::Vector3d state2position(const Eigen::VectorXd& state) override;
 
+    void init() override;
+
+    // kalman utilities
+
+    ExtendedKalmanFilter ekf_;
+    double last_yaw_ = 0;
+    double last_y_ = 0;
+    double last_r_ = 0;
+    double target_yaw_ = 0;
+    double dz_;
+private:
+    // Params
+    StandardObserverParams params_;
     // Logger
     rclcpp::Logger logger_ = rclcpp::get_logger("StandardObserver");
 };

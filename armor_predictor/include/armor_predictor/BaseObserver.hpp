@@ -30,6 +30,7 @@ public:
     int max_lost;
     int max_detect;
     double max_match_distance;
+    double max_match_yaw_diff;
     double lost_time_thresh;
     std::string target_frame;
 }BaseObserverParams;
@@ -42,8 +43,17 @@ public:
 
     virtual void reset_kalman() = 0;
 
+    TargetType target_type_;
 protected:
-    virtual void update_target_type(const autoaim_interfaces::msg::Armor& armor);
+    virtual void update_target_type(const autoaim_interfaces::msg::Armor& armor) {
+        if (armor.type == static_cast<int>(ArmorType::LARGE) && (tracking_number_ == "3" || tracking_number_ == "4" || tracking_number_ == "5")) {
+            target_type_ = TargetType::BALANCE;
+        } else if (tracking_number_ == "outpost") {
+            target_type_ = TargetType::OUTPOST;
+        } else {
+            target_type_ = TargetType::NORMAL;
+        }
+    }
 
     virtual void armor_jump(const autoaim_interfaces::msg::Armor same_id_armor) = 0;
 
@@ -66,6 +76,9 @@ protected:
     int detect_cnt_ = 0;
 
     double dt_ = 0.008f;
+    
+    // 目标车辆状态
+    Eigen::VectorXd target_state_;
 };
 
 
