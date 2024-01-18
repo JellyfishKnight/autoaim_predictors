@@ -10,8 +10,15 @@
 
 namespace helios_cv {
 
-typedef struct BalanceObserverParams : public BaseObserverParams {
-    
+typedef struct BalanceObserverParams : public BaseObserverParams {    
+    typedef struct DDMParams {
+        double sigma2_q_xyz;
+        double sigma2_q_yaw;
+        double sigma2_q_r;
+        double r_xyz_factor;
+        double r_yaw;
+    } DDMParams;
+    DDMParams ekf_params;
 }BalanceObserverParams;
 
 class BalanceObserver : public StandardObserver {

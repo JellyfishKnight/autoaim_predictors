@@ -229,7 +229,7 @@ void OutpostObserver::reset_kalman() {
     double armor_y = tracking_armor_.pose.position.y;
     double armor_z = tracking_armor_.pose.position.z;
     last_yaw_ = 0;
-    Eigen::VectorXd target(9);
+    Eigen::VectorXd target(5);
     double yaw = orientation2yaw(tracking_armor_.pose.orientation);
     double r = 0.26;
     double car_center_x = armor_x + r * cos(yaw);
@@ -237,7 +237,7 @@ void OutpostObserver::reset_kalman() {
     double car_center_z = armor_z;
     dz_ = 0;
     last_r_ = r;
-    target << car_center_x, car_center_y, car_center_z, yaw, 0, 0, 0, 0, r;
+    target << car_center_x, car_center_y, car_center_z, yaw, 0;
     target_state_ = target;
     ekf_.setState(target_state_);
 }

@@ -21,12 +21,7 @@ typedef struct ArmorObserverParams : public BaseObserverParams {
         double r_xyz_factor;
     } KFParams;
     KFParams kf_params;
-    int max_lost;
-    int max_detect;
     double min_match_distance;
-    double max_match_distance;
-    double lost_time_thresh;
-    std::string target_frame;
 }ArmorObserverParams;
 
 class ArmorObserver : public BaseObserver {

@@ -31,8 +31,9 @@ void BalanceObserver::init() {
         x_new(3) += x(7) * dt_;
         return x_new;
     };
-    auto j_f = [this](const Eigen::VectorXd &X) {
+    auto j_f = [this](const Eigen::VectorXd &) {
         Eigen::MatrixXd f(8, 8);
+        auto X = target_state_;
         //  xc  yc v                   z  r  yaw                           vyaw
         f << 1, 0, cos(X(5, 0)) * dt_, 0, 0,-X(2, 0) * sin(X(5, 0)) * dt_, 0,
              0, 1, sin(X(5, 0)) * dt_, 0, 0, X(2, 0) * cos(X(5, 0)) * dt_, 0,
@@ -53,7 +54,7 @@ void BalanceObserver::init() {
     };
     auto j_h = [](const Eigen::VectorXd & X) {
         Eigen::MatrixXd h(4, 7);
-        //   xc yc v  z  r                     yaw                          vyaw
+        //   xc yc v  zc r                     yaw                          vyaw
         h << 1, 0, 0, 0, cos(X(5) + i * M_PI),-X(4) * sin(X(5) + i * M_PI), 0,
              0, 1, 0, 0, sin(X(5) + i * M_PI), X(4) * cos(X(5) + i * M_PI), 0,
              0, 0, 0, 1, 0,                    0,                           0,
@@ -62,23 +63,27 @@ void BalanceObserver::init() {
     };
     // update_Q - process noise covariance matrix
     auto update_Q = [this]() -> Eigen::MatrixXd {
-        double t = dt_, x = params_.ekf_params.sigma2_q_xyz, 
-                y = params_.ekf_params.sigma2_q_yaw, 
-                r = params_.ekf_params.sigma2_q_r;
-        double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
-        double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
-        double q_r = pow(t, 4) / 4 * r;
+        double dd = params_.ekf_params.sigma2_q_xyz, 
+                da = params_.ekf_params.sigma2_q_yaw, 
+                dr = params_.ekf_params.sigma2_q_r;
+        double t5 = pow(dt_, 5) / 5;
+        double t4 = pow(dt_, 4) / 4;
+        double t3 = pow(dt_, 3) / 3;
+        double t2 = pow(dt_, 2) / 2;
+        double theta = target_state_(5, 0);
+        double v = target_state_(2, 0);
         Eigen::MatrixXd q(9, 9);
-        //  xc      yc      zc      yaw     vxc     vyc     vzc     vyaw    r  
-        q <<q_x_x,  0,      0,      0,      q_x_vx, 0,      0,      0,      0,
-            0,      q_x_x,  0,      0,      0,      q_x_vx, 0,      0,      0,  
-            0,      0,      q_x_x,  0,      0,      0,      q_x_vx, 0,      0,
-            0,      0,      0,      q_y_y,  0,      0,      0,      q_y_vy, 0, 
-            q_x_vx, 0,      0,      0,      q_vx_vx,0,      0,      0,      0,
-            0,      q_x_vx, 0,      0,      0,      q_vx_vx,0,      0,      0,
-            0,      0,      q_x_vx, 0,      0,      0,      q_vx_vx,0,      0,
-            0,      0,      0,      q_y_vy, 0,      0,      0,      q_vy_vy,0,
-            0,      0,      0,      0,      0,      0,      0,      0,      q_r;
+        double cos2 = pow(cos(theta), 2);
+        double sin2 = pow(sin(theta), 2);
+        double sincos = sin(theta) * cos(theta);
+        //   xc                                                       yc                                                       v                     z         r          yaw                           vyaw
+        q << t5 * da * pow(v, 2) * sin2 / 4 + t3 * dd * cos2,         sin(theta) * t3 * dd - pow(v, 2) * sincos * t5 * da / 4, t2 * dd * cos(theta), 0,        0,        -t4 * da * v * sin(theta) / 2,-t3 * da * v * sin(theta) / 2,
+             sin(theta) * t3 * dd - pow(v, 2) * sincos * t5 * da / 4, t3 * dd * sin2 + t5 * da * pow(v, 2) * cos2 / 4,         t2 * dd * sin(theta), 0,        0,         t4 * da * v * cos(theta) / 2, t3 * da * v * cos(theta) / 2,
+             t2 * dd * cos(theta),                                    t2 * dd * sin(theta),                                    dt_ * dd,            0,        0,         0,                            0,
+             0,                                                       0,                                                       0,                    dt_ *dd, 0,         0,                            0,
+             0,                                                       0,                                                       0,                    0,        dt_ * dr, 0,                            0,
+             -t4 * da * v * sin(theta) / 2,                           t4 * da * v * cos(theta) / 2,                            0,                    0,        0,         t3 * da,                      t2 * da,
+             -t3 * da * v * sin(theta) / 2,                           t3 * da * v * cos(theta) / 2,                            0,                    0,        0,         t2 * da,                      dt_ * da;
         return q;
     };
     // update_R - observation noise covariance matrix
@@ -91,7 +96,6 @@ void BalanceObserver::init() {
     Eigen::DiagonalMatrix<double, 9> p0;
     p0.setIdentity();
     ekf_ = ExtendedKalmanFilter{f, h, j_f, j_h, update_Q,  update_R, p0};
-
 }
 
 autoaim_interfaces::msg::Target BalanceObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
@@ -256,7 +260,7 @@ void BalanceObserver::reset_kalman() {
     double armor_y = tracking_armor_.pose.position.y;
     double armor_z = tracking_armor_.pose.position.z;
     last_yaw_ = 0;
-    Eigen::VectorXd target(9);
+    Eigen::VectorXd target(7);
     double yaw = orientation2yaw(tracking_armor_.pose.orientation);
     double r = 0.26;
     double car_center_x = armor_x + r * cos(yaw);
@@ -264,7 +268,7 @@ void BalanceObserver::reset_kalman() {
     double car_center_z = armor_z;
     dz_ = 0;
     last_r_ = r;
-    target << car_center_x, car_center_y, car_center_z, yaw, 0, 0, 0, 0, r;
+    target << car_center_x, car_center_y, 0, car_center_z, r, yaw, 0;
     target_state_ = target;
     ekf_.setState(target_state_);
 }
