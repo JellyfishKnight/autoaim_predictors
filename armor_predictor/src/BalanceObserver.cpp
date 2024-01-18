@@ -46,17 +46,17 @@ void BalanceObserver::init() {
     };
     auto h = [](const Eigen::VectorXd & X) {
         Eigen::VectorXd z(4);
-        z(0) = X(0) + X(4) * cos(X(5) + i * M_PI)  
-        z(1) = X(1) + X(4) * sin(X(5) + i * M_PI);  
+        z(0) = X(0) + X(4) * cos(X(5)); 
+        z(1) = X(1) + X(4) * sin(X(5));  
         z(2) = X(3);               
-        z(3) = X(5) + i * M_PI;                
+        z(3) = X(5);                
         return z;
     };
     auto j_h = [](const Eigen::VectorXd & X) {
         Eigen::MatrixXd h(4, 7);
         //   xc yc v  zc r                     yaw                          vyaw
-        h << 1, 0, 0, 0, cos(X(5) + i * M_PI),-X(4) * sin(X(5) + i * M_PI), 0,
-             0, 1, 0, 0, sin(X(5) + i * M_PI), X(4) * cos(X(5) + i * M_PI), 0,
+        h << 1, 0, 0, 0, cos(X(5)),            -X(4) * sin(X(5)),           0,
+             0, 1, 0, 0, sin(X(5)),            X(4) * cos(X(5)),            0,
              0, 0, 0, 1, 0,                    0,                           0,
              0, 0, 0, 0, 0,                    1,                           0;
         return h;
