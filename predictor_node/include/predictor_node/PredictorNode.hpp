@@ -98,7 +98,7 @@ private:
     Params params_;
     void update_predictor_params();
 
-    std::shared_ptr<BaseObserver> update_predictor_type(std::shared_ptr<BaseObserver> vehicle_observer);
+    void update_predictor_type(std::shared_ptr<BaseObserver>& vehicle_observer);
 
     // reset predictor service
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_predictor_service_;
