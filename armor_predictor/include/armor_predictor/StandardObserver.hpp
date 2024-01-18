@@ -3,6 +3,7 @@
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #pragma once
 
+#include <memory>
 #include <rclcpp/rclcpp.hpp>
 
 
@@ -20,6 +21,18 @@ typedef struct StandardObserverParams : public BaseObserverParams {
         double r_yaw;
     } DDMParams;
     DDMParams ekf_params;
+
+    StandardObserverParams(
+        int max_lost,
+        int max_detect,
+        double max_match_distance,
+        double max_match_yaw_diff,
+        double lost_time_thresh,
+        std::string target_frame,
+        DDMParams ekf_params
+    ) : BaseObserverParams(max_lost, max_detect, max_match_distance, max_match_yaw_diff,
+                             lost_time_thresh, std::move(target_frame)),
+        ekf_params(ekf_params) {}
 }StandardObserverParams;
 
 
@@ -54,7 +67,7 @@ protected:
     double dz_;
 private:
     // Params
-    StandardObserverParams params_;
+    std::shared_ptr<StandardObserverParams> params_;
     // Logger
     rclcpp::Logger logger_ = rclcpp::get_logger("StandardObserver");
 };

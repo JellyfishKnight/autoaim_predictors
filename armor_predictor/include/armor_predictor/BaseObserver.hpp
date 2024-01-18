@@ -27,6 +27,19 @@ namespace helios_cv {
 
 typedef struct BaseObserverParams {
 public:
+    BaseObserverParams(
+        int max_lost,
+        int max_detect,
+        double max_match_distance,
+        double max_match_yaw_diff,
+        double lost_time_thresh,
+        std::string target_frame
+    ) : max_lost(max_lost),
+        max_detect(max_detect),
+        max_match_distance(max_match_distance),
+        max_match_yaw_diff(max_match_yaw_diff),
+        lost_time_thresh(lost_time_thresh),
+        target_frame(std::move(target_frame)) {}
     int max_lost;
     int max_detect;
     double max_match_distance;
@@ -44,6 +57,7 @@ public:
     virtual void reset_kalman() = 0;
 
     TargetType target_type_;
+    int find_state_;
 protected:
     virtual void update_target_type(const autoaim_interfaces::msg::Armor& armor) {
         if (armor.type == static_cast<int>(ArmorType::LARGE) && (tracking_number_ == "3" || tracking_number_ == "4" || tracking_number_ == "5")) {
@@ -62,8 +76,6 @@ protected:
     virtual void track_armor(autoaim_interfaces::msg::Armors armors) = 0;
 
     virtual void init() = 0;
-
-    int find_state_;
 
     autoaim_interfaces::msg::Armor tracking_armor_;
     autoaim_interfaces::msg::Armor last_armor_;

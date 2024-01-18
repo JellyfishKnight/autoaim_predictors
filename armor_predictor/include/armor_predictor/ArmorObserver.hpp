@@ -16,6 +16,20 @@
 namespace helios_cv {
 
 typedef struct ArmorObserverParams : public BaseObserverParams {
+    ArmorObserverParams(
+        int max_lost,
+        int max_detect,
+        double max_match_distance,
+        double max_match_yaw_diff,
+        double lost_time_thresh,
+        std::string target_frame,
+        double sigma2_q_xyz,
+        double r_xyz_factor,
+        double min_match_distance
+    ) : BaseObserverParams(max_lost, max_detect, max_match_distance, max_match_yaw_diff, 
+        lost_time_thresh, std::move(target_frame)),
+        kf_params({sigma2_q_xyz, r_xyz_factor}),
+        min_match_distance(min_match_distance) {}
     typedef struct KFParams {
         double sigma2_q_xyz;
         double r_xyz_factor;
@@ -38,13 +52,15 @@ private:
 
     bool judge_spinning(const autoaim_interfaces::msg::Armor& armor);
 
+    void armor_jump(const autoaim_interfaces::msg::Armor same_id_armor) final;
+
     Eigen::Vector3d state2position(const Eigen::VectorXd& state) final;
 
     void track_armor(autoaim_interfaces::msg::Armors armors) final;
 
     void update_target_type(const autoaim_interfaces::msg::Armor& armor) final;
 
-    ArmorObserverParams params_;
+    std::shared_ptr<ArmorObserverParams> params_;
 
     EigenKalmanFilter kalman_filter_;
 

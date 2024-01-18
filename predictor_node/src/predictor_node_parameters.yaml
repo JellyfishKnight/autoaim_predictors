@@ -15,36 +15,86 @@ predictor_node:
     description: "target frame of coordinate transformation",
   }
   armor_predictor:
-    ekf: 
-      sigma2_q_xyz: {
+    armor_observer: 
+      kf: 
+        sigma2_q_xyz: {
+          type: double,
+          default_value: 20.0,
+        }
+        r_xyz_factor: {
+          type: double,
+          default_value: 0.05,
+        }
+      min_match_distance: {
         type: double,
-        default_value: 20.0,
+        default_value: 0.2,
       }
-      sigma2_q_yaw: {
-        type: double,
-        default_value: 50.0,
-      }
-      sigma2_q_r: {
-        type: double,
-        default_value: 800.0,
-      }
-      r_xyz_factor: {
-        type: double,
-        default_value: 0.05,
-      }
-      r_yaw: {
-        type: double,
-        default_value: 0.005
-      }
-    kf: 
-      sigma2_q_xyz: {
-        type: double,
-        default_value: 20.0,
-      }
-      r_xyz_factor: {
-        type: double,
-        default_value: 0.05,
-      }
+    standard_observer: 
+      ekf: 
+        sigma2_q_xyz: {
+          type: double,
+          default_value: 20.0,
+        }
+        sigma2_q_yaw: {
+          type: double,
+          default_value: 50.0,
+        }
+        sigma2_q_r: {
+          type: double,
+          default_value: 800.0,
+        }
+        r_xyz_factor: {
+          type: double,
+          default_value: 0.05,
+        }
+        r_yaw: {
+          type: double,
+          default_value: 0.005
+        }
+    outpost_observer: 
+      ekf: 
+        sigma2_q_xyz: {
+          type: double,
+          default_value: 20.0,
+        }
+        sigma2_q_yaw: {
+          type: double,
+          default_value: 50.0,
+        }
+        sigma2_q_r: {
+          type: double,
+          default_value: 800.0,
+        }
+        r_xyz_factor: {
+          type: double,
+          default_value: 0.05,
+        }
+        r_yaw: {
+          type: double,
+          default_value: 0.005
+        }
+    balance_observer: 
+      ekf: 
+        sigma2_q_xyz: {
+          type: double,
+          default_value: 20.0,
+        }
+        sigma2_q_yaw: {
+          type: double,
+          default_value: 50.0,
+        }
+        sigma2_q_r: {
+          type: double,
+          default_value: 800.0,
+        }
+        r_xyz_factor: {
+          type: double,
+          default_value: 0.05,
+        }
+        r_yaw: {
+          type: double,
+          default_value: 0.005
+        }
     prediction_thres: {
       type: double,
       default_value: 3.5,

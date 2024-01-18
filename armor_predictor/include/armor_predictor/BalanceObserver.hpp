@@ -3,6 +3,7 @@
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #pragma once
 
+#include <memory>
 #include <rclcpp/rclcpp.hpp>
 
 #include "BaseObserver.hpp"
@@ -19,6 +20,18 @@ typedef struct BalanceObserverParams : public BaseObserverParams {
         double r_yaw;
     } DDMParams;
     DDMParams ekf_params;
+
+    BalanceObserverParams(
+        int max_lost,
+        int max_detect,
+        double max_match_distance,
+        double max_match_yaw_diff,
+        double lost_time_thresh,
+        std::string target_frame,
+        DDMParams ekf_params
+    ) : BaseObserverParams(max_lost, max_detect, max_match_distance, max_match_yaw_diff,
+                             lost_time_thresh, std::move(target_frame)),
+        ekf_params(ekf_params) {}
 }BalanceObserverParams;
 
 class BalanceObserver : public StandardObserver {
@@ -38,7 +51,7 @@ protected:
 
     void init() final;
 private:
-    BalanceObserverParams params_;
+    std::shared_ptr<BalanceObserverParams> params_;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("BalanceObserver");
 };

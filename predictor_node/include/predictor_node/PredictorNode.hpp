@@ -39,8 +39,11 @@
 #include "autoaim_interfaces/msg/target.hpp"
 #include <std_srvs/srv/trigger.hpp>
 // custom
-#include "armor_predictor/VehicleObserver.hpp"
-#include "armor_predictor/ArmorPredictor.hpp"
+#include "armor_predictor/BaseObserver.hpp"
+#include "armor_predictor/ArmorObserver.hpp"
+#include "armor_predictor/OutpostObserver.hpp"
+#include "armor_predictor/BalanceObserver.hpp"
+#include "armor_predictor/StandardObserver.hpp"
 #include "autoaim_utilities/Armor.hpp"
 // #include "energy_predictor/EnergyPredictor.hpp"
 
@@ -70,10 +73,8 @@ private:
     double time_predictor_start_;
 
     double last_target_distance_;
-    bool use_vehicle_observe_ = true;
 
-    std::shared_ptr<VehicleObserver> vehicle_observer_;
-    std::shared_ptr<ArmorPredictor> armor_predictor_;
+    std::shared_ptr<BaseObserver> vehicle_observer_;
     // std::shared_ptr<EnergyPredictor> energy_predictor_;
     void init_predictors();
 
@@ -96,6 +97,8 @@ private:
     std::shared_ptr<ParamListener> param_listener_;
     Params params_;
     void update_predictor_params();
+
+    std::shared_ptr<BaseObserver> update_predictor_type(std::shared_ptr<BaseObserver> vehicle_observer);
 
     // reset predictor service
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_predictor_service_;

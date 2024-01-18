@@ -19,6 +19,18 @@ typedef struct OutpostObserverParams : public BaseObserverParams {
         double r_yaw_factor;
     } DDMParams;
     DDMParams ekf_params;
+
+    OutpostObserverParams(
+        int max_lost,
+        int max_detect,
+        double max_match_distance,
+        double max_match_yaw_diff,
+        double lost_time_thresh,
+        std::string target_frame,
+        DDMParams ekf_params
+    ) : BaseObserverParams(max_lost, max_detect, max_match_distance, max_match_yaw_diff,
+                             lost_time_thresh, std::move(target_frame)),
+        ekf_params(ekf_params) {}
 }OutpostObserverParams;
 
 
@@ -31,7 +43,6 @@ public:
     void reset_kalman() final;
 
 private:
-    OutpostObserverParams params_;
 
     void track_armor(autoaim_interfaces::msg::Armors armors) final;
 
@@ -42,6 +53,9 @@ private:
     void init() final;
 
     double radius_ = 0.26;
+
+
+    std::shared_ptr<OutpostObserverParams> params_;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("OutpostObserver");
 };
