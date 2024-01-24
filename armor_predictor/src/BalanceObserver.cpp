@@ -9,6 +9,7 @@
 #include <autoaim_utilities/Armor.hpp>
 #include <cfloat>
 #include <cmath>
+#include <math.h>
 #include <memory>
 #include <rclcpp/logging.hpp>
 #include <tf2/LinearMath/Quaternion.h>
@@ -26,16 +27,15 @@ void BalanceObserver::init() {
     // init kalman filter
     auto f = [this](const Eigen::VectorXd & x) {
         Eigen::VectorXd x_new = x;
-        x_new(0) += x(4) * dt_;
-        x_new(1) += x(5) * dt_;
-        x_new(2) += x(6) * dt_;
-        x_new(3) += x(7) * dt_;
+        x_new(0) += x(2) * cos(x(5)) * dt_;
+        x_new(1) += x(2) * sin(x(5)) * dt_;
+        x_new(5) += x(6) * dt_;
         return x_new;
     };
     auto j_f = [this](const Eigen::VectorXd &) {
-        Eigen::MatrixXd f(8, 8);
+        Eigen::MatrixXd f(7, 7);
         auto X = target_state_;
-        //  xc  yc v                   z  r  yaw                           vyaw
+        //   xc yc v                   z  r  yaw                           vyaw
         f << 1, 0, cos(X(5, 0)) * dt_, 0, 0,-X(2, 0) * sin(X(5, 0)) * dt_, 0,
              0, 1, sin(X(5, 0)) * dt_, 0, 0, X(2, 0) * cos(X(5, 0)) * dt_, 0,
              0, 0, 1,                  0, 0, 0,                            0,
@@ -47,8 +47,8 @@ void BalanceObserver::init() {
     };
     auto h = [](const Eigen::VectorXd & X) {
         Eigen::VectorXd z(4);
-        z(0) = X(0) + X(4) * cos(X(5)); 
-        z(1) = X(1) + X(4) * sin(X(5));  
+        z(0) = X(0) - X(4) * cos(X(5)); 
+        z(1) = X(1) - X(4) * sin(X(5));  
         z(2) = X(3);               
         z(3) = X(5);                
         return z;
@@ -73,7 +73,7 @@ void BalanceObserver::init() {
         double t2 = pow(dt_, 2) / 2;
         double theta = target_state_(5, 0);
         double v = target_state_(2, 0);
-        Eigen::MatrixXd q(9, 9);
+        Eigen::MatrixXd q(7, 7);
         double cos2 = pow(cos(theta), 2);
         double sin2 = pow(sin(theta), 2);
         double sincos = sin(theta) * cos(theta);
@@ -94,7 +94,7 @@ void BalanceObserver::init() {
         r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), params_->ekf_params.r_yaw;
         return r;
     };
-    Eigen::DiagonalMatrix<double, 9> p0;
+    Eigen::DiagonalMatrix<double, 7> p0;
     p0.setIdentity();
     ekf_ = ExtendedKalmanFilter{f, h, j_f, j_h, update_Q,  update_R, p0};
 }
@@ -138,14 +138,13 @@ autoaim_interfaces::msg::Target BalanceObserver::predict_target(autoaim_interfac
             // Pack data
             target.position.x = target_state_(0);
             target.position.y = target_state_(1);
-            target.position.z = target_state_(2);
-            target.yaw = target_state_(3);
-            target.velocity.x = target_state_(4);
-            target.velocity.y = target_state_(5);
-            target.velocity.z = target_state_(6);
-            target.v_yaw = target_state_(7);
-            target.radius_1 = target_state_(8);
-            target.radius_2 = 0;
+            target.position.z = target_state_(3);
+            target.yaw = target_state_(5);
+            target.velocity.x = target_state_(2) * cos(target_state_(5));
+            target.velocity.y = target_state_(2) * sin(target_state_(5));
+            target.velocity.z = 0;
+            target.v_yaw = target_state_(6);
+            target.radius_1 = target.radius_2 = target_state_(4);
             target.dz = 0;
             target.id = tracking_number_;
             target.tracking = true;
@@ -297,8 +296,8 @@ void BalanceObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_ar
 Eigen::Vector3d BalanceObserver::state2position(const Eigen::VectorXd& state) {
     double car_center_x = state(0);
     double car_center_y = state(1);
-    double car_center_z = state(2);
-    double r = state(8), yaw = state(3);
+    double car_center_z = state(3);
+    double r = state(4), yaw = state(5);
     double armor_x = car_center_x - r * cos(yaw);
     double armor_y = car_center_y - r * sin(yaw);
     return Eigen::Vector3d(armor_x, armor_y, car_center_z);
