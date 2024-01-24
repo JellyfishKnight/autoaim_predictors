@@ -11,6 +11,7 @@
  #pragma once
 
 // ros
+#include <autoaim_utilities/Armor.hpp>
 #include <cstdint>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
@@ -74,6 +75,7 @@ private:
 
     double last_target_distance_;
 
+    TargetType last_target_type_;
     std::shared_ptr<BaseObserver> vehicle_observer_;
     // std::shared_ptr<EnergyPredictor> energy_predictor_;
     void init_predictors();

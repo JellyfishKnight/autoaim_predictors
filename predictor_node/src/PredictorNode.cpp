@@ -13,6 +13,7 @@
 #include <armor_predictor/StandardObserver.hpp>
 #include <autoaim_utilities/Armor.hpp>
 #include <memory>
+#include <rclcpp/logging.hpp>
 
 namespace helios_cv {
 
@@ -252,6 +253,11 @@ void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observe
                 params_.armor_predictor.armor_observer.min_match_distance
             }
         );
+        RCLCPP_INFO(logger_, "armor mode");
+        return ;
+    }
+    if (last_target_type_ == observer->target_type_) {
+        // RCLCPP_INFO(logger_, "target state not changed %d", last_target_type_);        
         return ;
     }
     if (observer->target_type_ == TargetType::NORMAL) {
@@ -268,6 +274,7 @@ void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observe
                 params_.armor_predictor.armor_observer.min_match_distance
             }
         );
+        last_target_type_ = TargetType::NORMAL;
     } else if (observer->target_type_ == TargetType::OUTPOST) {
         observer = std::make_shared<OutpostObserver>(
             OutpostObserverParams{
@@ -285,24 +292,28 @@ void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observe
                 }
             }
         );
+        last_target_type_ = TargetType::OUTPOST;
     } else if (observer->target_type_ == TargetType::BALANCE) {
-            observer = std::make_shared<BalanceObserver>(
-                BalanceObserverParams{
-                    static_cast<int>(params_.armor_predictor.max_lost),
-                    static_cast<int>(params_.armor_predictor.max_detect),
-                    params_.armor_predictor.max_match_distance,
-                    params_.armor_predictor.max_match_yaw_diff,
-                    params_.armor_predictor.lost_time_thres_,
-                    params_.target_frame,
-                    BalanceObserverParams::DDMParams{
-                        params_.armor_predictor.balance_observer.ekf.sigma2_q_xyz,
-                        params_.armor_predictor.balance_observer.ekf.sigma2_q_yaw,
-                        params_.armor_predictor.balance_observer.ekf.sigma2_q_r,
-                        params_.armor_predictor.balance_observer.ekf.r_xyz_factor,
-                        params_.armor_predictor.balance_observer.ekf.r_yaw
-                    }
+        observer = std::make_shared<BalanceObserver>(
+            BalanceObserverParams{
+                static_cast<int>(params_.armor_predictor.max_lost),
+                static_cast<int>(params_.armor_predictor.max_detect),
+                params_.armor_predictor.max_match_distance,
+                params_.armor_predictor.max_match_yaw_diff,
+                params_.armor_predictor.lost_time_thres_,
+                params_.target_frame,
+                BalanceObserverParams::DDMParams{
+                    params_.armor_predictor.balance_observer.ekf.sigma2_q_xyz,
+                    params_.armor_predictor.balance_observer.ekf.sigma2_q_yaw,
+                    params_.armor_predictor.balance_observer.ekf.sigma2_q_r,
+                    params_.armor_predictor.balance_observer.ekf.r_xyz_factor,
+                    params_.armor_predictor.balance_observer.ekf.r_yaw
                 }
-            );
+            }
+        );
+        last_target_type_ = TargetType::BALANCE;
+    } else {
+        RCLCPP_INFO(logger_, "fuck");
     }
 }
 
