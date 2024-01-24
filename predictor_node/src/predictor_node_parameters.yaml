@@ -61,10 +61,6 @@ predictor_node:
           type: double,
           default_value: 50.0,
         }
-        sigma2_q_r: {
-          type: double,
-          default_value: 800.0,
-        }
         r_xyz_factor: {
           type: double,
           default_value: 0.05,
@@ -112,12 +108,12 @@ predictor_node:
     }
     max_match_distance: {
       type: double,
-      default_value: 0.35,
+      default_value: 0.3,
       description: "max match distance of armor"
     }
     max_match_yaw_diff: {
       type: double,
-      default_value: 0.3,
+      default_value: 0.6,
       description: "max match yaw diff of armor"
     }
     lost_time_thres_: {

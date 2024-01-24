@@ -151,7 +151,7 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     }
     // choose predict mode
     autoaim_interfaces::msg::Target target;
-    update_predictor_type(vehicle_observer_);
+    // update_predictor_type(vehicle_observer_);
     target = vehicle_observer_->predict_target(*armors_msg, dt);
     Eigen::Vector3d target_position = Eigen::Vector3d{target.position.x, target.position.y, target.position.z};
     last_target_distance_ = target_position.norm();

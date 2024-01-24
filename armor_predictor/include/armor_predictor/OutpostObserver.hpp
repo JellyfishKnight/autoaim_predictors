@@ -54,7 +54,6 @@ private:
 
     double radius_ = 0.26;
 
-
     std::shared_ptr<OutpostObserverParams> params_;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("OutpostObserver");

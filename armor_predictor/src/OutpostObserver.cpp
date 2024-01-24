@@ -169,6 +169,7 @@ void OutpostObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
                 }
             }
         }
+        // RCLCPP_WARN(logger_, "yaw %f", orientation2yaw(tracking_armor_.pose.orientation));
         // Check if the distance and yaw difference of closest armor are within the threshold
         if (min_position_error < params_->max_match_distance && yaw_diff < params_->max_match_yaw_diff) {
             // Matched armor found
@@ -247,6 +248,7 @@ void OutpostObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_ar
     double yaw = orientation2yaw(same_id_armor.pose.orientation);
     update_target_type(same_id_armor);
     target_state_(3) = yaw;
+
     auto position = same_id_armor.pose.position;
     Eigen::Vector3d current_position(position.x, position.y, position.z);
     Eigen::Vector3d infer_position = state2position(target_state_);
