@@ -25,6 +25,7 @@ void OutpostObserver::init() {
     // init kalman filter
     auto f = [this](const Eigen::VectorXd & x) {
         Eigen::VectorXd x_new = x;
+        x_new(3) += x_new(4) * dt_;
         return x_new;
     };
     auto j_f = [this](const Eigen::VectorXd &) {
@@ -59,7 +60,7 @@ void OutpostObserver::init() {
     // update_Q - process noise covariance matrix
     auto update_Q = [this]() -> Eigen::MatrixXd {
         double t = dt_, x = params_->ekf_params.sigma2_q_xyz, y = params_->ekf_params.sigma2_q_yaw;
-        double q_y_y = pow(t, 3) / 3 * y, q_y_vy = pow(t, 2) / 2 * x, q_vy_vy = t * y;
+        double q_y_y = pow(t, 3) / 3 * y, q_y_vy = pow(t, 2) / 2 * y, q_vy_vy = t * y;
         Eigen::MatrixXd q(5, 5);
         //  xc      yc      zc      yaw    vyaw
         q <<x,      0,      0,      0,     0,

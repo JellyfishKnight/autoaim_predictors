@@ -70,7 +70,7 @@ void StandardObserver::init() {
                 y = params_->ekf_params.sigma2_q_yaw, 
                 r = params_->ekf_params.sigma2_q_r;
         double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
-        double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
+        double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * y, q_vy_vy = pow(t, 2) * y;
         double q_r = pow(t, 4) / 4 * r;
         Eigen::MatrixXd q(9, 9);
         //  xc      yc      zc      yaw     vxc     vyc     vzc     vyaw    r  
