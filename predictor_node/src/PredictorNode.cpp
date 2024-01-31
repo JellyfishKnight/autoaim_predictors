@@ -123,6 +123,7 @@ void PredictorNode::init_predictors() {
             }
         }
     );
+    vehicle_observer_->target_type_ = TargetType::NORMAL;
     ///TODO: init energy_predictor
     // energy_predictor = std::make_shared<EnergyPredictor>();
 }
@@ -152,6 +153,9 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     // choose predict mode
     autoaim_interfaces::msg::Target target;
     update_predictor_type(vehicle_observer_);
+    // RCLCPP_INFO(logger_, "last type %d", last_target_type_);
+    // RCLCPP_INFO(logger_, "this type %d", vehicle_observer_->target_type_);
+    last_target_type_ = vehicle_observer_->target_type_;
     target = vehicle_observer_->predict_target(*armors_msg, dt);
     Eigen::Vector3d target_position = Eigen::Vector3d{target.position.x, target.position.y, target.position.z};
     last_target_distance_ = target_position.norm();
@@ -313,7 +317,8 @@ void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observe
         );
         last_target_type_ = TargetType::BALANCE;
     } else {
-        RCLCPP_INFO(logger_, "fuck");
+        RCLCPP_INFO(logger_, "last type %d", last_target_type_);
+        RCLCPP_INFO(logger_, "this type %d", observer->target_type_);
     }
 }
 
