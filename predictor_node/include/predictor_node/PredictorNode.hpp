@@ -77,6 +77,7 @@ private:
 
     TargetType last_target_type_;
     std::shared_ptr<BaseObserver> vehicle_observer_;
+    std::shared_ptr<ArmorObserver> armor_observer_;
     // std::shared_ptr<EnergyPredictor> energy_predictor_;
     void init_predictors();
 

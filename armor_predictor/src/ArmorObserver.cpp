@@ -58,7 +58,7 @@ void ArmorObserver::init() {
         r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]);
         return r;
     };
-    Eigen::DiagonalMatrix<double, 6> p0;
+    Eigen::DiagonalMatrix<double, 9> p0;
     p0.setIdentity();
     kalman_filter_ = EigenKalmanFilter{f, h, q, r, p0};
 }
@@ -160,9 +160,10 @@ void ArmorObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
 }
 
 void ArmorObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_armor) {
-    Eigen::VectorXd target_state(6);
+    Eigen::VectorXd target_state(9);
     target_state << same_id_armor.pose.position.x, same_id_armor.pose.position.y, same_id_armor.pose.position.z, 
-                    target_state_(3), target_state_(4), target_state_(5);
+                    target_state_(3), target_state_(4), target_state_(5),
+                    target_state_(6), target_state_(7), target_state_(8);
     kalman_filter_.set_state(target_state);
 }
 
@@ -178,7 +179,10 @@ bool ArmorObserver::judge_spinning(const autoaim_interfaces::msg::Armor& armor) 
         target_state_(2) = position.z;                // z
         target_state_(3) = 0;                         // vxc
         target_state_(4) = 0;                         // vyc
-        target_state_(5) = 0;                         // vzc
+        target_state_(5) = 0;                         // 
+        target_state_(6) = 0;                         // ax
+        target_state_(7) = 0;                         // ay
+        target_state_(8) = 0;                         // az
         RCLCPP_INFO(logger_, "Reset state!");
         kalman_filter_.set_state(target_state_);
         return false;
@@ -234,7 +238,7 @@ autoaim_interfaces::msg::Target ArmorObserver::predict_target(autoaim_interfaces
             target.id = tracking_number_;
             target.tracking = true;
             target.armor_type = armor_type_;
-            target.armors_num = static_cast<int>(target_type_) + 2;
+            target.armors_num = 1;
         } else {
             target.tracking = false;
         }
@@ -244,8 +248,8 @@ autoaim_interfaces::msg::Target ArmorObserver::predict_target(autoaim_interfaces
 
 void ArmorObserver::reset_kalman() {
     RCLCPP_DEBUG(logger_, "Kalman Refreshed!");
-    Eigen::VectorXd target_state(6);
-    target_state << tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z, 0, 0, 0;
+    Eigen::VectorXd target_state(9);
+    target_state << tracking_armor_.pose.position.x, tracking_armor_.pose.position.y, tracking_armor_.pose.position.z, 0, 0, 0, 0, 0, 0;
     target_state_ = target_state;
     kalman_filter_.set_state(target_state_);
 }

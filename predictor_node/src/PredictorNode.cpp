@@ -123,7 +123,21 @@ void PredictorNode::init_predictors() {
             }
         }
     );
+    armor_observer_ = std::make_shared<ArmorObserver>(
+        ArmorObserverParams{
+            static_cast<int>(params_.armor_predictor.max_lost),
+            static_cast<int>(params_.armor_predictor.max_detect),
+            params_.armor_predictor.max_match_distance,
+            params_.armor_predictor.max_match_yaw_diff,
+            params_.armor_predictor.lost_time_thres_,
+            params_.target_frame,
+            params_.armor_predictor.armor_observer.kf.sigma2_q_xyz,
+            params_.armor_predictor.armor_observer.kf.r_xyz_factor,
+            params_.armor_predictor.armor_observer.min_match_distance
+        }
+    );
     vehicle_observer_->target_type_ = TargetType::NORMAL;
+    last_target_type_ = TargetType::NORMAL;
     ///TODO: init energy_predictor
     // energy_predictor = std::make_shared<EnergyPredictor>();
 }
@@ -153,15 +167,22 @@ void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::Sh
     // choose predict mode
     autoaim_interfaces::msg::Target target;
     update_predictor_type(vehicle_observer_);
-    // RCLCPP_INFO(logger_, "last type %d", last_target_type_);
-    // RCLCPP_INFO(logger_, "this type %d", vehicle_observer_->target_type_);
     last_target_type_ = vehicle_observer_->target_type_;
-    target = vehicle_observer_->predict_target(*armors_msg, dt);
+    // if distance is under prediction threshold, use vehicle observe,
+    // otherwise use armor observer
+    if (last_target_distance_ > params_.armor_predictor.prediction_thres) {
+        vehicle_observer_->predict_target(*armors_msg, dt);
+        target = armor_observer_->predict_target(*armors_msg, dt);
+    } else {
+        armor_observer_->predict_target(*armors_msg, dt);
+        target = vehicle_observer_->predict_target(*armors_msg, dt);
+    }
     Eigen::Vector3d target_position = Eigen::Vector3d{target.position.x, target.position.y, target.position.z};
-    last_target_distance_ = target_position.norm();
+    if (target.tracking) {
+        last_target_distance_ = target_position.norm();
+    }
     target.header.stamp = armors_msg->header.stamp;
     target.header.frame_id = params_.target_frame;
-    // RCLCPP_WARN(logger_, "vx: %f, vy %f, vz: %f", target.velocity.x, target.velocity.y, target.velocity.z);
     target_pub_->publish(target);
 }
 
@@ -241,30 +262,11 @@ void PredictorNode::update_predictor_params() {
 }
 
 void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observer) {
-    // if distance is under prediction threshold, use vehicle observe,
-    // otherwise use armor predictor
-    if (last_target_distance_ > params_.armor_predictor.prediction_thres) {
-        observer = std::make_shared<ArmorObserver>(
-            ArmorObserverParams{
-                static_cast<int>(params_.armor_predictor.max_lost),
-                static_cast<int>(params_.armor_predictor.max_detect),
-                params_.armor_predictor.max_match_distance,
-                params_.armor_predictor.max_match_yaw_diff,
-                params_.armor_predictor.lost_time_thres_,
-                params_.target_frame,
-                params_.armor_predictor.armor_observer.kf.sigma2_q_xyz,
-                params_.armor_predictor.armor_observer.kf.r_xyz_factor,
-                params_.armor_predictor.armor_observer.min_match_distance
-            }
-        );
-        RCLCPP_INFO(logger_, "armor mode");
-        return ;
-    }
     if (last_target_type_ == observer->target_type_) {
         // RCLCPP_INFO(logger_, "target state not changed %d", last_target_type_);        
         return ;
     }
-    if (observer->target_type_ == TargetType::NORMAL) {
+    if (observer->target_type_ == TargetType::NORMAL && last_target_type_ != TargetType::NORMAL) {
         observer = std::make_shared<ArmorObserver>(
             ArmorObserverParams{
                 static_cast<int>(params_.armor_predictor.max_lost),
@@ -279,7 +281,7 @@ void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observe
             }
         );
         last_target_type_ = TargetType::NORMAL;
-    } else if (observer->target_type_ == TargetType::OUTPOST) {
+    } else if (observer->target_type_ == TargetType::OUTPOST && last_target_type_ != TargetType::OUTPOST) {
         observer = std::make_shared<OutpostObserver>(
             OutpostObserverParams{
                 static_cast<int>(params_.armor_predictor.max_lost),
@@ -297,7 +299,7 @@ void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observe
             }
         );
         last_target_type_ = TargetType::OUTPOST;
-    } else if (observer->target_type_ == TargetType::BALANCE) {
+    } else if (observer->target_type_ == TargetType::BALANCE && last_target_type_ != TargetType::BALANCE) {
         observer = std::make_shared<BalanceObserver>(
             BalanceObserverParams{
                 static_cast<int>(params_.armor_predictor.max_lost),
