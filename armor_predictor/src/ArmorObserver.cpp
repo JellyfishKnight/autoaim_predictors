@@ -229,7 +229,7 @@ autoaim_interfaces::msg::Target ArmorObserver::predict_target(autoaim_interfaces
             target.position.z = target_state_(2);
             target.velocity.x = target_state_(3);
             target.velocity.y = target_state_(4);
-            target.velocity.z = target_state_(5);            // max_lost
+            target.velocity.z = target_state_(5);
             target.yaw = target_state_(6);                                  // reuse as ax
             target.v_yaw = target_state_(7);                                // reuse as ay
             target.radius_1 = target_state_(8);                             // reuse as az

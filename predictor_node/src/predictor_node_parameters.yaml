@@ -122,10 +122,6 @@ predictor_node:
       description: "lost time threshold",
     }
   energy_predictor:
-    temp: {
-      type: double,
-      default_value: 10,
-      description: "temp",
-    }
-
+    kf_params:
+      
 
