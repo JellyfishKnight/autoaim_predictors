@@ -8,9 +8,13 @@
 #include <autoaim_utilities/Armor.hpp>
 #include <ceres/problem.h>
 #include <complex>
+#include <cstdint>
 #include <memory>
 #include <rclcpp/logging.hpp>
+#include <rclcpp/rate.hpp>
 #include <rclcpp/time.hpp>
+#include <rclcpp/utilities.hpp>
+#include <tuple>
 
 namespace helios_cv {
 
@@ -24,8 +28,6 @@ LeastSquares::LeastSquares() {
     refresh_ = false;
     problem = std::make_shared<ceres::Problem>();
 }
-
-
 
 void LeastSquares::estimate() {
     if (omega_state_in_fifo_.empty()) {
@@ -104,6 +106,7 @@ void LeastSquares::least_squares_refresh() {
 EnergyObserver::EnergyObserver(const EnergyObserverParams& params) {
     params_ = params;
     // Init 
+    find_state_ = LOST;
     reset_observer();
     // Create kalman
     auto f = [this] (const Eigen::VectorXd& ) {
@@ -138,7 +141,9 @@ EnergyObserver::EnergyObserver(const EnergyObserverParams& params) {
     omega_kf_ = EigenKalmanFilter(f, h, q, r, p);
     // Create ceres thread
     std::thread([this]()->void {
-        least_squares_.estimate();
+        while (rclcpp::ok()) {
+            least_squares_.estimate();
+        }
     }).detach();
 }
 
@@ -149,6 +154,10 @@ void EnergyObserver::set_params(const EnergyObserverParams &params) {
 void EnergyObserver::reset_observer() {
     omega_.refresh();
     isSolve_ = false;
+    ceres_cnt_ = 1;
+    isSolve_ = false;
+    refresh_ = true;
+    circle_mode_ = INIT;
     omega_kf_.set_state(Eigen::Vector3d::Zero());
 }
 
@@ -194,59 +203,107 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
             target.velocity.x = omega_.a_;
             target.velocity.y = omega_.w_;
             target.velocity.z = omega_.phi_;
+            target.armors_num = 5;
+            target.armor_type = "energy";
+            target.radius_1 = 1.0;
+            target.yaw = orientation2roll(tracking_armor_.pose.orientation);
         }
     }
     return target;
 }
 
-
-void EnergyObserver::track_energy(const autoaim_interfaces::msg::Armor& armors) {
-    if (!omega_.start_) {
-        predict_rad_ = 0;
-    } else {
-        if (params_.is_large_energy) {
-            // Get omega from kalman filter
-            Eigen::VectorXd measure(2);
-            measure << omega_.total_theta_, omega_.current_theta_;
-            omega_kf_.predict();
-            auto state = omega_kf_.correct(measure);
-            double omega = state(1);
-            omega_.set_filter(omega);
-            // Set ceres' problem
-            least_squares_.omega_state_in_fifo_.push(
-                OmegaState{
-                    omega_.filter_omega_.back(),
-                    pub_time_,
-                    omega_.st_,
-                    isSolve_,
-                    omega_.a_,
-                    omega_.w_,
-                    omega_.phi_,
-                    refresh_
-                }
-            );
-            if (!least_squares_.omega_state_out_fifo_.empty()) {
-                auto omega_state = least_squares_.omega_state_out_fifo_.front();
-                omega_.set_a_w_phi(omega_state.a, omega_state.w, omega_state.phi);
-                least_squares_.omega_state_out_fifo_.pop();
-            }
-            if (energy_state_switch()) {
-                if (std::fabs(omega_.get_err()) > 0.5) {
-                    omega_.fit_cnt_++;
-                    // predict_rad_ = omega_.get_rad();
-                    if ((omega_.fit_cnt_ % 40 == 0 && ceres_cnt_ == 1) || 
-                        (omega_.fit_cnt_ % 30 == 0 || ceres_cnt_ != 1)) {
-                        circle_mode_ = STANDBY;
-                        omega_.change_st();
+void EnergyObserver::track_energy(const autoaim_interfaces::msg::Armor& armor) {
+    bool matched = false;
+    // When we hit one armor, while the armor switch, we can only see the energy fan or nothing
+    // we should take this as temp lost, don't reset params and keep predicting
+    if (armor.type == static_cast<int>(ArmorType::ENERGY_TARGET)) {
+        matched = true;
+        omega_.set_theta(orientation2roll(armor.pose.orientation));
+        if (!omega_.start_) {
+            a_ = 0;
+            w_ = 0;
+            phi_ = 0;
+        } else {
+            pub_time_ = omega_.time_series_.back();
+            if (params_.is_large_energy) {
+                // Get omega from kalman filter
+                Eigen::VectorXd measure(2);
+                measure << omega_.total_theta_, omega_.current_theta_;
+                omega_kf_.predict();
+                auto state = omega_kf_.correct(measure);
+                double omega = state(1);
+                omega_.set_filter(omega);
+                // Set ceres' problem
+                least_squares_.omega_state_in_fifo_.push(
+                    OmegaState{
+                        omega_.filter_omega_.back(),
+                        pub_time_,
+                        omega_.st_,
+                        isSolve_,
+                        omega_.a_,
+                        omega_.w_,
+                        omega_.phi_,
+                        refresh_
                     }
-                } else {
-                    // predict_rad_ = omega_.get_rad();
+                );
+                if (!least_squares_.omega_state_out_fifo_.empty()) {
+                    auto omega_state = least_squares_.omega_state_out_fifo_.front();
+                    omega_.set_a_w_phi(omega_state.a, omega_state.w, omega_state.phi);
+                    least_squares_.omega_state_out_fifo_.pop();
                 }
+                if (energy_state_switch()) {
+                    if (std::fabs(omega_.get_err()) > 0.5) {
+                        omega_.fit_cnt_++;
+                        a_ = omega_.a_;
+                        w_ = omega_.w_;
+                        phi_ = omega_.phi_;
+                        if ((omega_.fit_cnt_ % 40 == 0 && ceres_cnt_ == 1) || 
+                            (omega_.fit_cnt_ % 30 == 0 || ceres_cnt_ != 1)) {
+                            circle_mode_ = STANDBY;
+                            omega_.change_st();
+                        }
+                    } else {
+                        a_ = omega_.a_;
+                        w_ = omega_.w_;
+                        phi_ = omega_.phi_;
+                    }
+                } 
             } else {
-                predict_rad_ = 1.05;
+                a_ = 1.05;
+                w_ = 0;
+                phi_ = 0;
             }
         }
+        last_tracking_armor_ = armor;
     }
+    // Update state machine
+    if (find_state_ == DETECTING) {
+        if (matched) {
+            detect_cnt_++;
+            if (detect_cnt_ > 10) {
+                detect_cnt_ = 0;
+                find_state_ = TRACKING;
+            }
+        }
+        find_state_ = TRACKING;
+    } else if (find_state_ == TRACKING) {
+        if (!matched) {
+            find_state_ = TEMP_LOST;
+            lost_cnt_++;
+        }
+    } else if (find_state_ == TEMP_LOST) {
+        if (!matched) {
+            lost_cnt_++;
+            if (lost_cnt_ > 20) {
+                RCLCPP_WARN(logger_, "Target Lost!");
+                lost_cnt_ = 0;
+                find_state_ = LOST;
+            }
+        } else {
+            find_state_ = TRACKING;
+            lost_cnt_ = 0;
+        }
+    } 
 }
 
 bool EnergyObserver::energy_state_switch() {

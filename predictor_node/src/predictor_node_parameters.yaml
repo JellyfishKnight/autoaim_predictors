@@ -7,7 +7,7 @@ predictor_node:
   autoaim_mode: {
     type: int,
     default_value: 0,
-    description: "whether to use armor autoaim"
+    description: "0: autoaim, 1: small energy, 2: large energy"
   }  
   target_frame: {
     type: string,
@@ -123,5 +123,38 @@ predictor_node:
     }
   energy_predictor:
     kf_params:
+      sigma_q_x: {
+        type: double,
+        default_value: 50.0,
+        description: "sigma q x"
+      }
+      sigma_q_v: {
+        type: double,
+        default_value: 50.0,
+        description: "sigma q y"
+      }
+      sigma_q_a: {
+        type: double,
+        default_value: 50.0,
+        description: "sigma q z"
+      }
+      sigma_r_x: {
+        type: double,
+        default_value: 0.05,
+      }
+      sigma_r_v: {
+        type: double,
+        default_value: 0.05,
+      }
+    max_lost: {
+      type: int,
+      default_value: 20,
+      description: "max lost times of energy"
+    }
+    max_detect: {
+      type: int,
+      default_value: 5,
+      description: "max detect times of energy"
+    }
       
 

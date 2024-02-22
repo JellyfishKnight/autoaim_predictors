@@ -10,6 +10,7 @@
 #include "autoaim_interfaces/msg/armors.hpp"
 #include "autoaim_interfaces/msg/target.hpp"
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <string>
 #include <tf2/convert.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
@@ -30,6 +31,7 @@
 // STL
 #include <thread>
 #include <queue>
+#include <tuple>
 
 #define INIT 1
 #define STANDBY 2
@@ -43,11 +45,15 @@ namespace helios_cv {
 
 typedef struct EnergyObserverParams {
     bool is_large_energy; // 0 small energy 1 large energy
-    double lost_time_thresh;
+    int max_lost;
+    int max_detect;
     std::string target_frame;
     typedef struct KalmanParams{
         double sigma_q_x;
+        double sigma_q_v;
+        double sigma_q_a;
         double sigma_r_x;
+        double sigma_r_v;
     }KalmanParams;
     KalmanParams kf_params;
 }EnergyObserverParams;
@@ -124,17 +130,20 @@ private:
     bool isSolve_;
     bool refresh_;
     uint8_t ceres_cnt_;
-    double predict_rad_;
     double pub_time_, pub_omega;
 
+    double a_, w_, phi_;
+
     autoaim_interfaces::msg::Armor tracking_armor_;
+    autoaim_interfaces::msg::Armor last_tracking_armor_;
 
     // params
     EnergyObserverParams params_;
 
     EigenKalmanFilter omega_kf_;
     double dt_;
-    int lost_cnt_;
+    int lost_cnt_{};
+    int detect_cnt_{};
 
     LeastSquares least_squares_;
 

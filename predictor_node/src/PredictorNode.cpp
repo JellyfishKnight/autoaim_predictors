@@ -33,15 +33,6 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
         [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
         cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
         cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
-        ///TODO: not sure if we need pnp solver in predictor node
-        // pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
-        //     params_.pnp_solver.small_armor_width,
-        //     params_.pnp_solver.small_armor_height,
-        //     params_.pnp_solver.large_armor_width,
-        //     params_.pnp_solver.large_armor_height,
-        //     params_.pnp_solver.energy_armor_width,
-        //     params_.pnp_solver.energy_armor_height
-        // });
         cam_info_sub_.reset();
     });
     // create publishers and subscribers
@@ -138,8 +129,21 @@ void PredictorNode::init_predictors() {
     );
     vehicle_observer_->target_type_ = TargetType::NORMAL;
     last_target_type_ = TargetType::NORMAL;
-    ///TODO: init energy_predictor
-    // energy_predictor = std::make_shared<EnergyPredictor>();
+    energy_observer_ = std::make_shared<EnergyObserver>(
+        EnergyObserverParams{
+            params_.autoaim_mode == 1 ? false : true,
+            static_cast<int>(params_.energy_predictor.max_lost),
+            static_cast<int>(params_.energy_predictor.max_detect),
+            params_.target_frame,
+            EnergyObserverParams::KalmanParams {
+                params_.energy_predictor.kf_params.sigma_q_x,
+                params_.energy_predictor.kf_params.sigma_q_v,
+                params_.energy_predictor.kf_params.sigma_q_a,
+                params_.energy_predictor.kf_params.sigma_r_x,
+                params_.energy_predictor.kf_params.sigma_r_v
+            }
+        }
+    );
 }
 
 void PredictorNode::armor_predictor_callback(autoaim_interfaces::msg::Armors::SharedPtr armors_msg) {
@@ -192,10 +196,26 @@ void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::S
         RCLCPP_WARN(logger_, "Parameters updated");
         update_predictor_params();
     }
-    RCLCPP_ERROR_ONCE(logger_, "Energy mode!");
-    autoaim_interfaces::msg::Target target;
-    target.header.stamp = armors_msg->header.stamp;
-    target.header.frame_id = params_.target_frame;
+    // build time series
+    rclcpp::Time time = armors_msg->header.stamp;
+    double dt = time.seconds() - time_predictor_start_;
+    time_predictor_start_ = time.seconds();
+    // transform armors to target frame
+    for (auto &armor : armors_msg->armors) {
+        geometry_msgs::msg::PoseStamped ps;
+        ps.header = armors_msg->header;
+        ps.pose = armor.pose;
+        try {
+            armor.pose = tf2_buffer_->transform(ps, params_.target_frame).pose;
+        } catch (const tf2::ExtrapolationException & ex) {
+            RCLCPP_ERROR(get_logger(), "Error while transforming %s", ex.what());
+            return;
+        }
+    }
+    // Start Prediction
+    auto target = energy_observer_->predict_target(*armors_msg, dt);
+    // Publish
+    target_pub_->publish(target);
 }
 
 
@@ -257,7 +277,20 @@ void PredictorNode::update_predictor_params() {
             );
         }
     } else {
-
+        bool is_large_energy = params_.autoaim_mode == 1 ? false : true;
+        energy_observer_->set_params(EnergyObserverParams{
+            is_large_energy,
+            static_cast<int>(params_.energy_predictor.max_lost),
+            static_cast<int>(params_.energy_predictor.max_detect),
+            params_.target_frame,
+            EnergyObserverParams::KalmanParams {
+                params_.energy_predictor.kf_params.sigma_q_x,
+                params_.energy_predictor.kf_params.sigma_q_v,
+                params_.energy_predictor.kf_params.sigma_q_a,
+                params_.energy_predictor.kf_params.sigma_r_x,
+                params_.energy_predictor.kf_params.sigma_r_v
+            }
+        });
     }
 }
 
