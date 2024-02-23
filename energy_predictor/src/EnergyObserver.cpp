@@ -200,12 +200,12 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
             // Pack data
             target.tracking = true;
             target.position = tracking_armor_.pose.position;
-            target.velocity.x = omega_.a_;
-            target.velocity.y = omega_.w_;
-            target.velocity.z = omega_.phi_;
+            target.velocity.x = a_;
+            target.velocity.y = w_;
+            target.velocity.z = phi_;
             target.armors_num = 5;
             target.armor_type = "energy";
-            target.radius_1 = 1.0;
+            target.radius_1 = 0.7;
             target.yaw = orientation2roll(tracking_armor_.pose.orientation);
         }
     }
@@ -287,13 +287,16 @@ void EnergyObserver::track_energy(const autoaim_interfaces::msg::Armor& armor) {
         }
         find_state_ = TRACKING;
     } else if (find_state_ == TRACKING) {
+        RCLCPP_WARN(logger_, "find state %d", find_state_);
         if (!matched) {
+            RCLCPP_WARN(logger_, "!matched");
             find_state_ = TEMP_LOST;
             lost_cnt_++;
         }
     } else if (find_state_ == TEMP_LOST) {
         if (!matched) {
             lost_cnt_++;
+            RCLCPP_WARN(logger_, "Temp Lost %d!", lost_cnt_);
             if (lost_cnt_ > 20) {
                 RCLCPP_WARN(logger_, "Target Lost!");
                 lost_cnt_ = 0;

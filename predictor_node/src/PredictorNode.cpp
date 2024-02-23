@@ -81,7 +81,7 @@ PredictorNode::PredictorNode(const rclcpp::NodeOptions& options) :
                         this->get_node_clock_interface(), std::chrono::duration<int>(2));
                     tf2_filter_->registerCallback(&PredictorNode::armor_predictor_callback, this);   
                     last_autoaim_mode_ = 0;     
-                } else {
+                } else if (params_.autoaim_mode != 0 && last_autoaim_mode_ == 0) {
                     RCLCPP_WARN(logger_, "Change state to energy mode");
                     // reset to release running callback function
                     tf2_filter_.reset();
