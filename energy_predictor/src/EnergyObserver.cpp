@@ -34,6 +34,7 @@ void LeastSquares::estimate() {
         return ;
     }
     auto omega_state = omega_state_in_fifo_.front();
+    omega_state_in_fifo_.pop();
     // Handle input
     refresh_ = omega_state.refresh;
     if(refresh_){
@@ -64,7 +65,7 @@ void LeastSquares::estimate() {
         ceres::Solver::Options options;
         options.max_num_iterations = 50;
         options.linear_solver_type = ceres::DENSE_QR;
-        options.minimizer_progress_to_stdout = true;
+        options.minimizer_progress_to_stdout = false;
         ceres::Solver::Summary summary;
         ceres::Solve(options, problem.get(), &summary);
 
@@ -118,10 +119,9 @@ EnergyObserver::EnergyObserver(const EnergyObserverParams& params) {
         return f;
     };
     auto h = [this] (const Eigen::VectorXd& ) {
-        Eigen::MatrixXd h(3, 3);
+        Eigen::MatrixXd h(2, 3);
         h << 1, 0, 0,
-             0, 1, 0,
-             0, 0, 1;
+             0, 1, 0;
         return h;
     };
     auto q = [this] () {
@@ -132,7 +132,7 @@ EnergyObserver::EnergyObserver(const EnergyObserverParams& params) {
         return q;
     };
     auto r = [this] (const Eigen::VectorXd& z) {
-        Eigen::DiagonalMatrix<double, 3> r;
+        Eigen::DiagonalMatrix<double, 2> r;
         r.setIdentity();
         return r;
     };
@@ -159,6 +159,7 @@ void EnergyObserver::reset_observer() {
     refresh_ = true;
     circle_mode_ = INIT;
     omega_kf_.set_state(Eigen::Vector3d::Zero());
+    RCLCPP_WARN(logger_, "Reset Energy Observer");
 }
 
 double EnergyObserver::orientation2roll(const geometry_msgs::msg::Quaternion& orientation) {
@@ -171,7 +172,7 @@ double EnergyObserver::orientation2roll(const geometry_msgs::msg::Quaternion& or
 
 autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
     dt_ = dt;
-    if (dt > 0.1) {
+    if (dt > 1.0) {
         find_state_ = LOST;
     }
     autoaim_interfaces::msg::Target target;
@@ -179,45 +180,76 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
     target.header.stamp = armors.header.stamp;
     if (armors.armors.empty()) {
         target.tracking = false;
-        return target;
-    }
-    // Find target armor
-    tracking_armor_ = armors.armors[0];
-    for (auto armor : armors.armors) {
-        if (armor.type == static_cast<int>(ArmorType::ENERGY_TARGET)) {
-            tracking_armor_ = armor;
-            break;
-        }
-    }
-    // Start observation
-    if (find_state_ == LOST) {
-        reset_observer();
-        omega_.set_time(rclcpp::Time(armors.header.stamp).seconds());
-        find_state_ = DETECTING;
+        matched_ = false;
+        tracking_armor_.type = static_cast<int>(ArmorType::INVALID);
     } else {
-        track_energy(tracking_armor_);
-        if (find_state_ == TRACKING || find_state_ == TEMP_LOST) {
-            // Pack data
-            target.tracking = true;
-            target.position = tracking_armor_.pose.position;
-            target.velocity.x = a_;
-            target.velocity.y = w_;
-            target.velocity.z = phi_;
-            target.armors_num = 5;
-            target.armor_type = "energy";
-            target.radius_1 = 0.7;
-            target.yaw = orientation2roll(tracking_armor_.pose.orientation);
+        // Find target armor
+        tracking_armor_ = armors.armors[0];
+        for (auto armor : armors.armors) {
+            if (armor.type == static_cast<int>(ArmorType::ENERGY_TARGET)) {
+                tracking_armor_ = armor;
+                break;
+            }
+        }
+        omega_.set_time(rclcpp::Time(armors.header.stamp).seconds());
+        // Start observation
+        if (find_state_ == LOST) {
+            reset_observer();
+            find_state_ = DETECTING;
+        } else {
+            refresh_ = false;
+            track_energy(tracking_armor_);
+            if (find_state_ == TRACKING || find_state_ == TEMP_LOST) {
+                // Pack data
+                target.tracking = true;
+                target.position = tracking_armor_.pose.position;
+                target.velocity.x = a_;
+                target.velocity.y = w_;
+                target.velocity.z = phi_;
+                target.armors_num = 5;
+                target.armor_type = "energy";
+                target.radius_1 = 0.7;
+                target.yaw = orientation2roll(tracking_armor_.pose.orientation);
+            }
         }
     }
+    // Update state machine
+    if (find_state_ == DETECTING) {
+        if (matched_) {
+            detect_cnt_++;
+            if (detect_cnt_ > 10) {
+                detect_cnt_ = 0;
+                find_state_ = TRACKING;
+            }
+        }
+        find_state_ = TRACKING;
+    } else if (find_state_ == TRACKING) {
+        if (!matched_) {
+            find_state_ = TEMP_LOST;
+            lost_cnt_++;
+        }
+    } else if (find_state_ == TEMP_LOST) {
+        if (!matched_) {
+            lost_cnt_++;
+            if (lost_cnt_ > 20) {
+                RCLCPP_WARN(logger_, "Target Lost!");
+                lost_cnt_ = 0;
+                find_state_ = LOST;
+            }
+        } else {
+            find_state_ = TRACKING;
+            lost_cnt_ = 0;
+        }
+    } 
     return target;
 }
 
 void EnergyObserver::track_energy(const autoaim_interfaces::msg::Armor& armor) {
-    bool matched = false;
+    matched_ = false;
     // When we hit one armor, while the armor switch, we can only see the energy fan or nothing
     // we should take this as temp lost, don't reset params and keep predicting
     if (armor.type == static_cast<int>(ArmorType::ENERGY_TARGET)) {
-        matched = true;
+        matched_ = true;
         omega_.set_theta(orientation2roll(armor.pose.orientation));
         if (!omega_.start_) {
             a_ = 0;
@@ -276,37 +308,6 @@ void EnergyObserver::track_energy(const autoaim_interfaces::msg::Armor& armor) {
         }
         last_tracking_armor_ = armor;
     }
-    // Update state machine
-    if (find_state_ == DETECTING) {
-        if (matched) {
-            detect_cnt_++;
-            if (detect_cnt_ > 10) {
-                detect_cnt_ = 0;
-                find_state_ = TRACKING;
-            }
-        }
-        find_state_ = TRACKING;
-    } else if (find_state_ == TRACKING) {
-        RCLCPP_WARN(logger_, "find state %d", find_state_);
-        if (!matched) {
-            RCLCPP_WARN(logger_, "!matched");
-            find_state_ = TEMP_LOST;
-            lost_cnt_++;
-        }
-    } else if (find_state_ == TEMP_LOST) {
-        if (!matched) {
-            lost_cnt_++;
-            RCLCPP_WARN(logger_, "Temp Lost %d!", lost_cnt_);
-            if (lost_cnt_ > 20) {
-                RCLCPP_WARN(logger_, "Target Lost!");
-                lost_cnt_ = 0;
-                find_state_ = LOST;
-            }
-        } else {
-            find_state_ = TRACKING;
-            lost_cnt_ = 0;
-        }
-    } 
 }
 
 bool EnergyObserver::energy_state_switch() {
@@ -318,11 +319,13 @@ bool EnergyObserver::energy_state_switch() {
                 omega_.refresh_after_wave();
             }
             return false;
-        case STANDBY:
-            if (omega_.get_time_gap() > 1.5) {
+        case STANDBY: {
+            auto time_gap = omega_.get_time_gap();
+            if (time_gap > 1.5) {
                 circle_mode_ = ESTIMATE;
             }
             return false;
+        }
         case ESTIMATE:
             ceres_cnt_++;
             isSolve_ = true;

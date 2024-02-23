@@ -129,6 +129,7 @@ private:
     Omega omega_;
     bool isSolve_;
     bool refresh_;
+    bool matched_;
     uint8_t ceres_cnt_;
     double pub_time_, pub_omega;
 
