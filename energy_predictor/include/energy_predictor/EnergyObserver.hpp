@@ -132,7 +132,7 @@ private:
     bool matched_;
     uint8_t ceres_cnt_;
     double pub_time_, pub_omega;
-
+    
     double a_, w_, phi_;
 
     autoaim_interfaces::msg::Armor tracking_armor_;

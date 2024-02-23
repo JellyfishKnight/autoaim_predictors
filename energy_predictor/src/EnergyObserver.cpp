@@ -209,7 +209,13 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
                 target.armors_num = 5;
                 target.armor_type = "energy";
                 target.radius_1 = 0.7;
-                target.yaw = orientation2roll(tracking_armor_.pose.orientation);
+                double roll, pitch, yaw;
+                tf2::Quaternion q(tracking_armor_.pose.orientation.x, tracking_armor_.pose.orientation.y, 
+                                    tracking_armor_.pose.orientation.z, tracking_armor_.pose.orientation.w);
+                tf2::Matrix3x3 m(q);
+                m.getRPY(roll, pitch, yaw);
+                target.yaw = yaw;
+                target.v_yaw = roll;
             }
         }
     }
