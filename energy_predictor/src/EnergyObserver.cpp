@@ -209,6 +209,7 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
                 target.armors_num = 5;
                 target.armor_type = "energy";
                 target.radius_1 = 0.7;
+                target.radius_2 = omega_.t_list_.back();
                 double roll, pitch, yaw;
                 tf2::Quaternion q(tracking_armor_.pose.orientation.x, tracking_armor_.pose.orientation.y, 
                                     tracking_armor_.pose.orientation.z, tracking_armor_.pose.orientation.w);
