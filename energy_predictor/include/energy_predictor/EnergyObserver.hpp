@@ -4,8 +4,6 @@
 #pragma once
 
 // ros
-#include <autoaim_utilities/Armor.hpp>
-#include <rclcpp/logger.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include "autoaim_interfaces/msg/armors.hpp"
 #include "autoaim_interfaces/msg/target.hpp"
@@ -123,6 +121,8 @@ private:
     void track_energy(const autoaim_interfaces::msg::Armor& armors);
 
     bool energy_state_switch();
+
+    Eigen::Vector3d get_energy_center(const autoaim_interfaces::msg::Armor& armor, double yaw);
 
     uint8_t circle_mode_;
 

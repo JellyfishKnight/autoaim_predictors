@@ -202,7 +202,6 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
             if (find_state_ == TRACKING || find_state_ == TEMP_LOST) {
                 // Pack data
                 target.tracking = true;
-                target.position = tracking_armor_.pose.position;
                 target.velocity.x = a_;
                 target.velocity.y = w_;
                 target.velocity.z = phi_;
@@ -217,6 +216,10 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
                 m.getRPY(roll, pitch, yaw);
                 target.yaw = yaw;
                 target.v_yaw = roll;
+                auto center_position = get_energy_center(tracking_armor_, yaw);
+                target.position.x = center_position(0);
+                target.position.y = center_position(1);
+                target.position.z = center_position(2);
             }
         }
     }
@@ -249,6 +252,14 @@ autoaim_interfaces::msg::Target EnergyObserver::predict_target(autoaim_interface
         }
     } 
     return target;
+}
+
+Eigen::Vector3d EnergyObserver::get_energy_center(const autoaim_interfaces::msg::Armor& armor, double yaw) {
+    double roll = orientation2roll(armor.pose.orientation);
+    double xc = armor.pose.position.x - 0.7 * std::sin(-roll) * std::sin(yaw), 
+            yc = armor.pose.position.y - 0.7 * std::sin(-roll) * std::cos(yaw),
+            zc = armor.pose.position.z - 0.7 * std::cos(-roll);    
+    return {xc, yc, zc};
 }
 
 void EnergyObserver::track_energy(const autoaim_interfaces::msg::Armor& armor) {
