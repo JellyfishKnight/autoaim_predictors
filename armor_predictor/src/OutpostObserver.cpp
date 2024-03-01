@@ -41,8 +41,8 @@ void OutpostObserver::init() {
     auto h = [this](const Eigen::VectorXd & x) {
         Eigen::VectorXd z(4);
         double xc = x(0), yc = x(1), yaw = x(3);
-        z(0) = xc - radius_ * cos(yaw);  // xa
-        z(1) = yc - radius_ * sin(yaw);  // ya
+        z(0) = xc - radius_ * std::cos(yaw);  // xa
+        z(1) = yc - radius_ * std::sin(yaw);  // ya
         z(2) = x(2);               // za
         z(3) = x(3);               // yaw  
         return z;
@@ -50,17 +50,17 @@ void OutpostObserver::init() {
     auto j_h = [this](const Eigen::VectorXd & x) {
         Eigen::MatrixXd h(4, 5);
         double yaw = x(3);
-        //  xc   yc   zc   yaw               vyaw
-        h <<1,   0,   0,   radius_*sin(yaw), 0,
-            0,   1,   0,   -radius_*cos(yaw),0,
-            0,   0,   1,   0,                0,
-            0,   0,   0,   1,                0;
+        //  xc   yc   zc   yaw                     vyaw
+        h <<1,   0,   0,   radius_* std::sin(yaw), 0,
+            0,   1,   0,   -radius_* std::cos(yaw),0,
+            0,   0,   1,   0,                      0,
+            0,   0,   0,   1,                      0;
         return h;
     };
     // update_Q - process noise covariance matrix
     auto update_Q = [this]() -> Eigen::MatrixXd {
         double t = dt_, x = params_->ekf_params.sigma2_q_xyz, y = params_->ekf_params.sigma2_q_yaw;
-        double q_y_y = pow(t, 3) / 3 * y, q_y_vy = pow(t, 2) / 2 * y, q_vy_vy = t * y;
+        double q_y_y = std::pow(t, 3) / 3 * y, q_y_vy = std::pow(t, 2) / 2 * y, q_vy_vy = t * y;
         Eigen::MatrixXd q(5, 5);
         //  xc      yc      zc      yaw    vyaw
         q <<x,      0,      0,      0,     0,
@@ -74,7 +74,7 @@ void OutpostObserver::init() {
     auto update_R = [this](const Eigen::VectorXd &z) -> Eigen::MatrixXd {
         Eigen::DiagonalMatrix<double, 4> r;
         double x = params_->ekf_params.r_xyz_factor;
-        r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), params_->ekf_params.r_yaw_factor;
+        r.diagonal() << std::abs(x * z[0]), std::abs(x * z[1]), std::abs(x * z[2]), params_->ekf_params.r_yaw_factor;
         return r;
     };
     Eigen::DiagonalMatrix<double, 5> p0;
@@ -170,7 +170,6 @@ void OutpostObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
                 }
             }
         }
-        // RCLCPP_WARN(logger_, "yaw %f", orientation2yaw(tracking_armor_.pose.orientation));
         // Check if the distance and yaw difference of closest armor are within the threshold
         if (min_position_error < params_->max_match_distance && yaw_diff < params_->max_match_yaw_diff) {
             // Matched armor found
@@ -212,7 +211,6 @@ void OutpostObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     } else if (find_state_ == TEMP_LOST) {
         if (!matched) {
             lost_cnt_++;
-            // RCLCPP_WARN(logger_, "max lost %d, lost_cnt %d", params_.max_lost, lost_cnt_);
             if (lost_cnt_ > params_->max_lost) {
                 RCLCPP_WARN(logger_, "Target lost!");
                 find_state_ = LOST;
