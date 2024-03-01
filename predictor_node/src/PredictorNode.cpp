@@ -221,7 +221,6 @@ void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::S
 
 void PredictorNode::update_predictor_params() {
     if (params_.autoaim_mode) {
-        vehicle_observer_.reset();
         if (vehicle_observer_->target_type_ == TargetType::NORMAL) {
             vehicle_observer_ = std::make_shared<StandardObserver>(
                 StandardObserverParams{
