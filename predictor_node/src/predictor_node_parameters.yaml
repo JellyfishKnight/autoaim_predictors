@@ -45,7 +45,8 @@ predictor_node:
         }
         r_xyz_factor: {
           type: double,
-          default_value: 0.05,
+          default_value: 0.005,
+          description: "net is 0.5, traditional is 0.005"
         }
         r_yaw: {
           type: double,
@@ -63,7 +64,8 @@ predictor_node:
         }
         r_xyz_factor: {
           type: double,
-          default_value: 0.05,
+          default_value: 0.005,
+          description: "net is 0.5, traditional is 0.005"
         }
         r_yaw: {
           type: double,
@@ -86,6 +88,7 @@ predictor_node:
         r_xyz_factor: {
           type: double,
           default_value: 0.005,
+          description: "net is 0.5, traditional is 0.005"
         }
         r_yaw: {
           type: double,
