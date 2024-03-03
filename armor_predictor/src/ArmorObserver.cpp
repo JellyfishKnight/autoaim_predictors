@@ -6,8 +6,7 @@
 
 namespace helios_cv {
 
-ArmorObserver::ArmorObserver(const ArmorObserverParams& params) {
-    params_ = std::make_shared<ArmorObserverParams>(params);
+ArmorObserver::ArmorObserver(const ArmorObserverParams& params) : params_(params) {
     init();
 }
 
@@ -36,7 +35,7 @@ void ArmorObserver::init() {
         return h;
     };
     auto q = [this]() {
-        double t = dt_, x = params_->kf_params.sigma2_q_xyz;
+        double t = dt_, x = params_.kf_params.sigma2_q_xyz;
         double q_x_x = std::pow(t, 4) / 4 * x, q_x_vx = std::pow(t, 3) / 2 * x, q_x_ax = std::pow(t, 2) / 2,
                q_vx_vx = std::pow(t, 2), q_vx_ax = t, q_ax_ax = 1;
         Eigen::MatrixXd q(9, 9);
@@ -54,7 +53,7 @@ void ArmorObserver::init() {
     };
     auto r = [this](const Eigen::VectorXd & z) {
         Eigen::DiagonalMatrix<double, 3> r;
-        double x = params_->kf_params.r_xyz_factor;
+        double x = params_.kf_params.r_xyz_factor;
         r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]);
         return r;
     };
@@ -68,6 +67,9 @@ Eigen::Vector3d ArmorObserver::state2position(const Eigen::VectorXd& state) {
     position << state[0], state[1], state[2];
     return position;
 }
+
+void ArmorObserver::set_params(void *params) {
+    params_ = *static_cast<ArmorObserverParams*>(params);}
 
 void ArmorObserver::update_target_type(const autoaim_interfaces::msg::Armor& armor) {
     if (armor.type == static_cast<int>(ArmorType::LARGE) && (tracking_number_ == "3" || tracking_number_ == "4" || tracking_number_ == "5")) {
@@ -108,7 +110,7 @@ void ArmorObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
             }
         }
         // Check if the distance and yaw difference of closest armor are within the threshold
-        if (min_position_error < params_->min_match_distance) {
+        if (min_position_error < params_.min_match_distance) {
             // Matched armor found
             matched = true;
             auto position = tracking_armor_.pose.position;
@@ -130,7 +132,7 @@ void ArmorObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     if (find_state_ == DETECTING) {
         if (matched) {
             detect_cnt_++;
-            if (detect_cnt_ > params_->max_detect) {
+            if (detect_cnt_ > params_.max_detect) {
                 detect_cnt_ = 0;
                 find_state_ = TRACKING;
             }
@@ -146,7 +148,7 @@ void ArmorObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     } else if (find_state_ == TEMP_LOST) {
         if (!matched) {
             lost_cnt_++;
-            if (lost_cnt_ > params_->max_lost) {
+            if (lost_cnt_ > params_.max_lost) {
                 RCLCPP_WARN(logger_, "Target lost!");
                 find_state_ = LOST;
                 lost_cnt_ = 0;
@@ -173,7 +175,7 @@ bool ArmorObserver::judge_spinning(const autoaim_interfaces::msg::Armor& armor) 
     Eigen::Vector3d current_position(position.x, position.y, position.z);
     Eigen::Vector3d infer_position = state2position(target_state_);
     // if the distance between current position and infer position is too large, then the state is wrong
-    if ((current_position - infer_position).norm() > params_->max_match_distance) {
+    if ((current_position - infer_position).norm() > params_.max_match_distance) {
         target_state_(0) = position.x;                // x
         target_state_(1) = position.y;                // y
         target_state_(2) = position.z;                // z
@@ -199,7 +201,7 @@ autoaim_interfaces::msg::Target ArmorObserver::predict_target(autoaim_interfaces
     }
     // Msg to send back
     autoaim_interfaces::msg::Target target;
-    target.header.frame_id = params_->target_frame;
+    target.header.frame_id = params_.target_frame;
     target.header.stamp = armors.header.stamp;
     if (find_state_ == LOST) {
         if (armors.armors.empty()) {
@@ -222,7 +224,7 @@ autoaim_interfaces::msg::Target ArmorObserver::predict_target(autoaim_interfaces
         update_target_type(tracking_armor_);
     } else {
         track_armor(armors);
-        params_->max_lost = static_cast<int>(params_->lost_time_thresh / dt_);
+        params_.max_lost = static_cast<int>(params_.lost_time_thresh / dt_);
         if (find_state_ == TRACKING || find_state_ == TEMP_LOST) {
             target.position.x = target_state_(0);
             target.position.y = target_state_(1);

@@ -22,6 +22,8 @@ typedef struct StandardObserverParams : public BaseObserverParams {
     } DDMParams;
     DDMParams ekf_params;
 
+    StandardObserverParams();
+
     StandardObserverParams(
         int max_lost,
         int max_detect,
@@ -43,6 +45,8 @@ public:
     autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) override;
 
     void reset_kalman() override;
+
+    void set_params(void *params) override;
 
 protected:
     StandardObserver() = default;
@@ -67,7 +71,7 @@ protected:
     double dz_;
 private:
     // Params
-    std::shared_ptr<StandardObserverParams> params_;
+    StandardObserverParams params_;
     // Logger
     rclcpp::Logger logger_ = rclcpp::get_logger("StandardObserver");
 };

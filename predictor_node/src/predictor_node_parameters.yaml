@@ -6,7 +6,7 @@ predictor_node:
   }
   autoaim_mode: {
     type: int,
-    default_value: 1,
+    default_value: 0,
     description: "0: autoaim, 1: small energy, 2: large energy"
   }  
   target_frame: {

@@ -42,6 +42,8 @@ public:
 
     void reset_kalman() final;
 
+    void set_params(void *params) final;
+
 private:
 
     void track_armor(autoaim_interfaces::msg::Armors armors) final;
@@ -54,7 +56,7 @@ private:
 
     double radius_ = 0.26;
 
-    std::shared_ptr<OutpostObserverParams> params_;
+    OutpostObserverParams params_;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("OutpostObserver");
 };

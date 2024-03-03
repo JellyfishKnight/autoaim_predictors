@@ -46,6 +46,8 @@ public:
 
     autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) final;
 
+    void set_params(void *params) final;
+
     void reset_kalman() final;
 private:
     void init() final;
@@ -60,7 +62,7 @@ private:
 
     void update_target_type(const autoaim_interfaces::msg::Armor& armor) final;
 
-    std::shared_ptr<ArmorObserverParams> params_;
+    ArmorObserverParams params_;
 
     EigenKalmanFilter kalman_filter_;
 

@@ -40,6 +40,7 @@ public:
         max_match_yaw_diff(max_match_yaw_diff),
         lost_time_thresh(lost_time_thresh),
         target_frame(std::move(target_frame)) {}
+    BaseObserverParams() = default;
     int max_lost;
     int max_detect;
     double max_match_distance;
@@ -55,6 +56,8 @@ public:
     virtual autoaim_interfaces::msg::Target predict_target(autoaim_interfaces::msg::Armors armors, double dt) = 0;
 
     virtual void reset_kalman() = 0;
+
+    virtual void set_params(void *params) = 0;
 
     TargetType target_type_;
     int find_state_;

@@ -42,6 +42,8 @@ public:
 
     void reset_kalman() final;
 
+    void set_params(void *params) final;
+
 protected:
     void track_armor(autoaim_interfaces::msg::Armors armors) final;
 
@@ -51,7 +53,7 @@ protected:
 
     void init() final;
 private:
-    std::shared_ptr<BalanceObserverParams> params_;
+    BalanceObserverParams params_;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("BalanceObserver");
 };

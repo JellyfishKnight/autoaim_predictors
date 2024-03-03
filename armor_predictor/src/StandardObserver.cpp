@@ -15,8 +15,7 @@
 #include <vector>
 
 namespace helios_cv {
-StandardObserver::StandardObserver(const StandardObserverParams& params) {
-    params_ = std::make_shared<StandardObserverParams>(params);
+StandardObserver::StandardObserver(const StandardObserverParams& params) : params_(params) {
     find_state_ = LOST;
     init();
 }
@@ -66,9 +65,9 @@ void StandardObserver::init() {
     };
     // update_Q - process noise covariance matrix
     auto update_Q = [this]() -> Eigen::MatrixXd {
-        double t = dt_, x = params_->ekf_params.sigma2_q_xyz, 
-                y = params_->ekf_params.sigma2_q_yaw, 
-                r = params_->ekf_params.sigma2_q_r;
+        double t = dt_, x = params_.ekf_params.sigma2_q_xyz, 
+                y = params_.ekf_params.sigma2_q_yaw, 
+                r = params_.ekf_params.sigma2_q_r;
         double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
         double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * y, q_vy_vy = pow(t, 2) * y;
         double q_r = pow(t, 4) / 4 * r;
@@ -88,8 +87,8 @@ void StandardObserver::init() {
     // update_R - observation noise covariance matrix
     auto update_R = [this](const Eigen::VectorXd &z) -> Eigen::MatrixXd {
         Eigen::DiagonalMatrix<double, 4> r;
-        double x = params_->ekf_params.r_xyz_factor;
-        r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), params_->ekf_params.r_yaw;
+        double x = params_.ekf_params.r_xyz_factor;
+        r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), params_.ekf_params.r_yaw;
         return r;
     };
     Eigen::DiagonalMatrix<double, 9> p0;
@@ -98,13 +97,17 @@ void StandardObserver::init() {
 
 }
 
+void StandardObserver::set_params(void *params) {
+    params_ = *static_cast<StandardObserverParams*>(params);
+}
+
 autoaim_interfaces::msg::Target StandardObserver::predict_target(autoaim_interfaces::msg::Armors armors, double dt) {
     dt_ = dt;
     if (dt_ > 0.1) {
         find_state_ = LOST;
     }
     autoaim_interfaces::msg::Target target;
-    target.header.frame_id = params_->target_frame;
+    target.header.frame_id = params_.target_frame;
     target.header.stamp = armors.header.stamp;
     if (find_state_ == LOST) {
         if (armors.armors.empty()) {
@@ -150,7 +153,7 @@ autoaim_interfaces::msg::Target StandardObserver::predict_target(autoaim_interfa
             target.tracking = false;
         }
         // Update threshold of temp lost 
-        params_->max_lost = static_cast<int>(params_->lost_time_thresh / dt_ * 4 / target.armors_num);
+        params_.max_lost = static_cast<int>(params_.lost_time_thresh / dt_ * 4 / target.armors_num);
     }
     return target;
 }
@@ -187,7 +190,7 @@ void StandardObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
             }
         }
         // Check if the distance and yaw difference of closest armor are within the threshold
-        if (min_position_error < params_->max_match_distance && yaw_diff < params_->max_match_yaw_diff) {
+        if (min_position_error < params_.max_match_distance && yaw_diff < params_.max_match_yaw_diff) {
             // Matched armor found
             matched = true;
             auto position = tracking_armor_.pose.position;
@@ -195,7 +198,7 @@ void StandardObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
             double measured_yaw = orientation2yaw(tracking_armor_.pose.orientation);
             Eigen::Vector4d measurement(position.x, position.y, position.z, measured_yaw);
             target_state_ = ekf_.Correct(measurement);
-        } else if (same_id_armors_count == 1 && yaw_diff > params_->max_match_yaw_diff) {
+        } else if (same_id_armors_count == 1 && yaw_diff > params_.max_match_yaw_diff) {
             // Matched armor not found, but there is only one armor with the same id
             // and yaw has jumped, take this case as the target is spinning and armor jumped
             armor_jump(same_id_armor);
@@ -219,7 +222,7 @@ void StandardObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
     if (find_state_ == DETECTING) {
         if (matched) {
             detect_cnt_++;
-            if (detect_cnt_ > params_->max_detect) {
+            if (detect_cnt_ > params_.max_detect) {
                 detect_cnt_ = 0;
                 find_state_ = TRACKING;
             }
@@ -236,7 +239,7 @@ void StandardObserver::track_armor(autoaim_interfaces::msg::Armors armors) {
         if (!matched) {
             lost_cnt_++;
             // RCLCPP_WARN(logger_, "max lost %d, lost_cnt %d", params_.max_lost, lost_cnt_);
-            if (lost_cnt_ > params_->max_lost) {
+            if (lost_cnt_ > params_.max_lost) {
                 RCLCPP_WARN(logger_, "Target lost!");
                 find_state_ = LOST;
                 lost_cnt_ = 0;
@@ -294,7 +297,7 @@ void StandardObserver::armor_jump(const autoaim_interfaces::msg::Armor same_id_a
     Eigen::Vector3d current_position(position.x, position.y, position.z);
     Eigen::Vector3d infer_position = state2position(target_state_);
     // if the distance between current position and infer position is too large, then the state is wrong
-    if ((current_position - infer_position).norm() > params_->max_match_distance) {
+    if ((current_position - infer_position).norm() > params_.max_match_distance) {
         double r = target_state_(8);
         target_state_(0) = position.x + r * cos(yaw); // xc
         target_state_(1) = position.y + r * sin(yaw); // yc

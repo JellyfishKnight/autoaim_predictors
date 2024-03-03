@@ -220,60 +220,69 @@ void PredictorNode::energy_predictor_callback(autoaim_interfaces::msg::Armors::S
 
 
 void PredictorNode::update_predictor_params() {
-    if (params_.autoaim_mode) {
+    if (params_.autoaim_mode == 0) {
+        auto armor_observer_params = ArmorObserverParams{
+            static_cast<int>(params_.armor_predictor.max_lost),
+            static_cast<int>(params_.armor_predictor.max_detect),
+            params_.armor_predictor.max_match_distance,
+            params_.armor_predictor.max_match_yaw_diff,
+            params_.armor_predictor.lost_time_thres_,
+            params_.target_frame,
+            params_.armor_predictor.armor_observer.kf.sigma2_q_xyz,
+            params_.armor_predictor.armor_observer.kf.r_xyz_factor,
+            params_.armor_predictor.armor_observer.min_match_distance
+        };
+        armor_observer_->set_params(&armor_observer_params);
         if (vehicle_observer_->target_type_ == TargetType::NORMAL) {
-            vehicle_observer_ = std::make_shared<StandardObserver>(
-                StandardObserverParams{
-                    static_cast<int>(params_.armor_predictor.max_lost),
-                    static_cast<int>(params_.armor_predictor.max_detect),
-                    params_.armor_predictor.max_match_distance,
-                    params_.armor_predictor.max_match_yaw_diff,
-                    params_.armor_predictor.lost_time_thres_,
-                    params_.target_frame,
-                    StandardObserverParams::DDMParams{
-                        params_.armor_predictor.standard_observer.ekf.sigma2_q_xyz,
-                        params_.armor_predictor.standard_observer.ekf.sigma2_q_yaw,
-                        params_.armor_predictor.standard_observer.ekf.sigma2_q_r,
-                        params_.armor_predictor.standard_observer.ekf.r_xyz_factor,
-                        params_.armor_predictor.standard_observer.ekf.r_yaw
-                    }
+            auto params = StandardObserverParams{
+                static_cast<int>(params_.armor_predictor.max_lost),
+                static_cast<int>(params_.armor_predictor.max_detect),
+                params_.armor_predictor.max_match_distance,
+                params_.armor_predictor.max_match_yaw_diff,
+                params_.armor_predictor.lost_time_thres_,
+                params_.target_frame,
+                StandardObserverParams::DDMParams{
+                    params_.armor_predictor.standard_observer.ekf.sigma2_q_xyz,
+                    params_.armor_predictor.standard_observer.ekf.sigma2_q_yaw,
+                    params_.armor_predictor.standard_observer.ekf.sigma2_q_r,
+                    params_.armor_predictor.standard_observer.ekf.r_xyz_factor,
+                    params_.armor_predictor.standard_observer.ekf.r_yaw
                 }
-            );
+            };
+            vehicle_observer_ ->set_params(&params);
         } else if (vehicle_observer_->target_type_ == TargetType::OUTPOST) {
-            vehicle_observer_ = std::make_shared<OutpostObserver>(
-                OutpostObserverParams{
-                    static_cast<int>(params_.armor_predictor.max_lost),
-                    static_cast<int>(params_.armor_predictor.max_detect),
-                    params_.armor_predictor.max_match_distance,
-                    params_.armor_predictor.max_match_yaw_diff,
-                    params_.armor_predictor.lost_time_thres_,
-                    params_.target_frame,
-                    OutpostObserverParams::DDMParams{
-                        params_.armor_predictor.outpost_observer.ekf.sigma2_q_yaw,
-                        params_.armor_predictor.outpost_observer.ekf.sigma2_q_xyz,
-                        params_.armor_predictor.outpost_observer.ekf.r_xyz_factor,
-                        params_.armor_predictor.outpost_observer.ekf.r_yaw
-                    }
+            auto params = OutpostObserverParams{
+                static_cast<int>(params_.armor_predictor.max_lost),
+                static_cast<int>(params_.armor_predictor.max_detect),
+                params_.armor_predictor.max_match_distance,
+                params_.armor_predictor.max_match_yaw_diff,
+                params_.armor_predictor.lost_time_thres_,
+                params_.target_frame,
+                OutpostObserverParams::DDMParams{
+                    params_.armor_predictor.outpost_observer.ekf.sigma2_q_yaw,
+                    params_.armor_predictor.outpost_observer.ekf.sigma2_q_xyz,
+                    params_.armor_predictor.outpost_observer.ekf.r_xyz_factor,
+                    params_.armor_predictor.outpost_observer.ekf.r_yaw
                 }
-            );
+            };
+            vehicle_observer_->set_params(&params);
         } else if (vehicle_observer_->target_type_ == TargetType::BALANCE) {
-            vehicle_observer_ = std::make_shared<BalanceObserver>(
-                BalanceObserverParams{
-                    static_cast<int>(params_.armor_predictor.max_lost),
-                    static_cast<int>(params_.armor_predictor.max_detect),
-                    params_.armor_predictor.max_match_distance,
-                    params_.armor_predictor.max_match_yaw_diff,
-                    params_.armor_predictor.lost_time_thres_,
-                    params_.target_frame,
-                    BalanceObserverParams::DDMParams{
-                        params_.armor_predictor.balance_observer.ekf.sigma2_q_xyz,
-                        params_.armor_predictor.balance_observer.ekf.sigma2_q_yaw,
-                        params_.armor_predictor.balance_observer.ekf.sigma2_q_r,
-                        params_.armor_predictor.balance_observer.ekf.r_xyz_factor,
-                        params_.armor_predictor.balance_observer.ekf.r_yaw
-                    }
+            auto params = BalanceObserverParams{
+                static_cast<int>(params_.armor_predictor.max_lost),
+                static_cast<int>(params_.armor_predictor.max_detect),
+                params_.armor_predictor.max_match_distance,
+                params_.armor_predictor.max_match_yaw_diff,
+                params_.armor_predictor.lost_time_thres_,
+                params_.target_frame,
+                BalanceObserverParams::DDMParams{
+                    params_.armor_predictor.balance_observer.ekf.sigma2_q_xyz,
+                    params_.armor_predictor.balance_observer.ekf.sigma2_q_yaw,
+                    params_.armor_predictor.balance_observer.ekf.sigma2_q_r,
+                    params_.armor_predictor.balance_observer.ekf.r_xyz_factor,
+                    params_.armor_predictor.balance_observer.ekf.r_yaw
                 }
-            );
+            };
+            vehicle_observer_->set_params(&params);
         }
     } else {
         bool is_large_energy = params_.autoaim_mode == 1 ? false : true;
@@ -290,7 +299,7 @@ void PredictorNode::update_predictor_params() {
                 params_.energy_predictor.kf_params.sigma_r_v
             }
         });
-    }
+    }    
 }
 
 void PredictorNode::update_predictor_type(std::shared_ptr<BaseObserver>& observer) {
